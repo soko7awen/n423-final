@@ -42,7 +42,7 @@ export default function Footer() {
         <Link href="/contact" style={style.link}>Contact</Link>
       </View>
       <Text style={style.right}>
-        <Text style={{ fontWeight: "bold" }}>LOREBoards</Text> <Text style={{ fontStyle: "italic" }}>“Playing Games to Study”</Text> · (555)&nbsp;123-2456&nbsp;·&nbsp;9876&nbsp;Place&nbsp;Ave.&nbsp;IN,&nbsp;20456
+        <Text style={{ fontWeight: "bold" }}>LOREBoards</Text> <Text style={{ fontStyle: "italic" }}>“Playing Games to Study”</Text> · <Text style={{ whiteSpace: "nowrap"}}>(555) 123-2456</Text> · <Text style={{ whiteSpace: "nowrap"}}>9876 Place Ave. IN,  20456</Text>
       </Text>
     </View>
   );
