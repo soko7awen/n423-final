@@ -1,112 +1,105 @@
-import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
-import { Link, useRouter } from 'expo-router';
-import { theme } from '../../styles/theme';
+import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import MaskedView from '@react-native-masked-view/masked-view';
 
-import MarioWorldImage from '../../assets/super-mario-world.png';
-
+import { useTheme } from '../../styles/theme';
+import Footer from "../../components/Footer";
+import GameCard from "../../components/GameCard";
+import { useDevice } from "../../app/_layout";
 
 export default function HomeScreen() {
     const router = useRouter();
+    const { isDesktopWeb } = useDevice();
+    const theme = useTheme();
+
+    const styles = StyleSheet.create({
+        welcomeText: {
+            width: "100%",
+            maxWidth: 1200,
+            paddingHorizontal: 15,
+            marginHorizontal: "auto",
+        },
+        welcomeTextLink: {
+            ...theme.link,
+            color: "#062dff"
+        },
+        gamesContainer: {
+            position: "relative",
+            overflow: 'hidden',
+        },
+        gamesFlex: {
+            flexDirection: "row",
+            gap: 27,
+            alignItems: 'center',
+        },
+        webMask: {
+            overflow: 'hidden',
+            maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+        },
+    });
+
+    const GamesContent = () => (
+        <View style={styles.gamesFlex}>
+            <GameCard />
+            <GameCard />
+            <GameCard />
+            <GameCard />
+            <GameCard />
+        </View>
+    );
+
     return (
-        <ScrollView style={theme.container}>
-            <View style={styles.welcomeText}>
-                <Text style={[theme.title, { fontSize: 32, textAlign: "center" }]}>Welcome to LOREBoards!</Text>
-                <Text style={[theme.subtitle, { textAlign: "center" }]}>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Ut sit amet euismod turpis. Nullam vel lobortis arcu. Nam auctor erat vehicula odio malesuada.{"\n"}
-                    {"\n"}
-                    To add entries of your own, you will need to{" "}
-                    <Text
-                        style={theme.link}
-                        onPress={() => router.push("/profile")}
-                    >
-                        Log In
-                    </Text>{" "}
-                    or{" "}
-                    <Text
-                        style={theme.link}
-                        onPress={() => router.push("/profile")}
-                    >
-                        Create an Account
+        <ScrollView contentContainerStyle={theme.scrollContainer}>
+            <LinearGradient
+                colors={['rgba(250, 218, 97, 1)', 'rgba(255, 145, 136, 1)', 'rgba(255, 90, 205, 1)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            >
+                <View style={styles.welcomeText}>
+                    <Text style={[theme.title, { marginTop: 30, fontSize: 32, textAlign: "center" }]}>
+                        Welcome to LOREBoards!
                     </Text>
-                    .
+                    <Text style={[theme.subtitle, { textAlign: "center" }]}>
+                        We love indexing game completions...{"\n"}
+                        {"\n"}
+                        To add entries of your own, you will need{" "}
+                        <Text style={styles.welcomeTextLink} onPress={() => router.push("/login")}>Log In</Text>{" "}
+                        or{" "}
+                        <Text style={styles.welcomeTextLink} onPress={() => router.push("/signup")}>Create an Account</Text>.
+                    </Text>
+                </View>
+            </LinearGradient>
+            <View style={theme.mainContainer}>
+                <Text style={[theme.title, { marginLeft: isDesktopWeb ? "5%" : 0 }]}>
+                    Latest Submissions:
                 </Text>
-            </View>
-            <Text style={[theme.title, {width: "100%", maxWidth: 900, marginVertical: 0, marginHorizontal: "auto", }]}>Latest Submissions:</Text>
-            <View style={styles.gamesFlex}>
-                <View style={styles.gameWrap}>
-                    <View style={styles.gameImageWrap}>
-                        <Image
-                            source={MarioWorldImage}
-                            style={styles.gameImage}
-                        />
-                    </View>
-                    <View style={styles.gameLower}>
-                        <View style={styles.gameInfo}>
-                            <View style={styles.gameInfoBar}>Completed - 96 Exits soko Awen</View>
-                            <View style={styles.gameInfoText}>123</View>
+
+                <View style={[styles.gamesContainer, { marginLeft: isDesktopWeb ? "5%" : 0, width: isDesktopWeb ? '95%' : '100%' }]}>
+                    {Platform.OS === 'web' ? (
+                        <View style={styles.webMask}>
+                            <GamesContent />
                         </View>
-                    </View>
+                    ) : (
+                        <MaskedView
+                            style={{ width: '100%' }}
+                            maskElement={
+                                <LinearGradient
+                                    colors={['#000', '#000', 'transparent']}
+                                    start={[0, 0]}
+                                    end={[1, 0]}
+                                    style={{ flex: 1 }}
+                                />
+                            }
+                        >
+                            <GamesContent />
+                        </MaskedView>
+                    )}
                 </View>
             </View>
+            <Footer />
         </ScrollView>
-    )
+    );
 }
 
-const styles = StyleSheet.create({
-    welcomeText: {
-        width: "100%",
-        maxWidth: 1200,
-        marginVertical: 0,
-        marginHorizontal: "auto",
-    },
-    gamesFlex: {
-
-    },
-    gameWrap: {
-        maxWidth: 380,
-    },
-    gameImageWrap: {
-        aspectRatio: 38/27,
-        width: "100%",
-        height: "auto",
-        backgroundColor: "#1D1D1D",
-        borderTopLeftRadius: 21,
-        borderTopRightRadius: 21,
-    },
-    gameImage: {
-        aspectRatio: 1,
-        width: "auto",
-        height: "100%",
-        marginHorizontal: "auto",
-    },
-    gameLower: {
-        height: 95,
-        borderBottomLeftRadius: 21,
-        borderBottomRightRadius: 21,
-        backgroundColor: "#CFCFCF",
-    },
-    gameInfo: {
-        
-    },
-    gameInfoBar: {
-        zIndex: 1,
-        height: 35,
-        marginTop: -35,
-        justifyContent: "center",
-
-        userProfile: {
-            pic: {
-                width: 30,
-                height: 30,
-                borderRadius: "100%",
-            }
-        }
-    },
-    gameInfoText: {
-        
-    },
-    button: {
-        width: "200px",
-        marginHorizontal: "auto",
-    }
-});

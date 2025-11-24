@@ -1,41 +1,48 @@
-import { useWindowDimensions, Platform, View, Text } from "react-native";
-import { Tabs, Link } from "expo-router";
+import { View, Text } from "react-native";
+import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-
-import WebTopNav from "../../components/WebTopNav";
+import { useDevice } from "../_layout";
 
 export default function TabsLayout() {
-  const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === "web" && width >= 768;
+  const { isDesktopWeb } = useDevice();
 
   return (
-    <>
-      {isDesktopWeb && <WebTopNav />}
-
-      <Tabs
-        screenOptions={{
-          headerShown: !isDesktopWeb,
-          tabBarStyle: { display: isDesktopWeb ? "none" : "flex" },
+    <Tabs
+      screenOptions={{
+        tabBarStyle: { display: isDesktopWeb ? "none" : "flex" },
+        headerShown: !isDesktopWeb,
+        headerTitleStyle: {
+          fontFamily: "LexendZetta_400Regular",
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "LOREBoards",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" color={color} size={size} />
+          ),
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: "Home",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="home" color={color} size={size} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="details"
-          options={{ title: "Details" }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{ title: "Profile" }}
-        />
-      </Tabs>
-    </>
+      />
+      <Tabs.Screen
+        name="create"
+        options={{
+          title: "Create",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="create" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" color={color} size={size} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }
