@@ -6,8 +6,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web",
-    "vercel-build": "expo export --output-dir web-build"
+    "web": "expo start --web"
   },
   "dependencies": {
     "@expo-google-fonts/lexend-zetta": "^0.4.1",
