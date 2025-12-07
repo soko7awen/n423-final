@@ -6,12 +6,14 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import { useTheme } from '../../styles/theme';
 import Footer from "../../components/Footer";
 import GameCard from "../../components/GameCard";
-import { useDevice } from "../../app/_layout";
+import { useDevice } from "../../app/device-context";
+import { useAuth } from '../../src/auth/AuthContext';
 
 export default function HomeScreen() {
     const router = useRouter();
     const { isDesktopWeb } = useDevice();
     const theme = useTheme();
+    const { user } = useAuth();
 
     const styles = StyleSheet.create({
         welcomeText: {
@@ -64,10 +66,22 @@ export default function HomeScreen() {
                     <Text style={[theme.subtitle, { textAlign: "center" }]}>
                         We love indexing game completions...{"\n"}
                         {"\n"}
-                        To add entries of your own, you will need{" "}
-                        <Text style={styles.welcomeTextLink} onPress={() => router.push("/login")}>Log In</Text>{" "}
-                        or{" "}
-                        <Text style={styles.welcomeTextLink} onPress={() => router.push("/signup")}>Create an Account</Text>.
+                        {user ? (
+                            <>
+                                Looking to add a game completion of your own?{" "}
+                                <Text style={styles.welcomeTextLink} onPress={() => router.push("/create")}>
+                                    Submit a New Entry
+                                </Text>
+                                .
+                            </>
+                        ) : (
+                            <>
+                                To add entries of your own, you will need{" "}
+                                <Text style={styles.welcomeTextLink} onPress={() => router.push("/login")}>Log In</Text>{" "}
+                                or{" "}
+                                <Text style={styles.welcomeTextLink} onPress={() => router.push("/signup")}>Create an Account</Text>.
+                            </>
+                        )}
                     </Text>
                 </View>
             </LinearGradient>
@@ -102,4 +116,3 @@ export default function HomeScreen() {
         </ScrollView>
     );
 }
-

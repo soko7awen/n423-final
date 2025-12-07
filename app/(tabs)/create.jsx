@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, ScrollView, Image, } from 'react-native';
 
 import { useTheme } from '../../styles/theme';
 import Footer from "../../components/Footer";
-import { useDevice } from "../../app/_layout";
+import { useDevice } from "../../app/device-context";
 
 import AboutImage from '../../assets/about.png';
 

@@ -1,7 +1,7 @@
 import { View, Text } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useDevice } from "../_layout";
+import { useDevice } from "../device-context";
 
 export default function TabsLayout() {
   const { isDesktopWeb } = useDevice();

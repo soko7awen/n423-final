@@ -1,7 +1,7 @@
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router';
 
-import { useDevice } from "../app/_layout";
+import { useDevice } from "../app/device-context";
 
 import MarioWorldImage from '../assets/super-mario-world.png';
 import ProfileImage from '../assets/zim-zorp.png';

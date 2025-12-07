@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { useDevice } from "../app/_layout";
+import { useDevice } from "../app/device-context";
 
 export function useTheme() {
   const { isDesktopWeb } = useDevice();

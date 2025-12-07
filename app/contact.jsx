@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoid
 import { useState, useRef } from 'react';
 
 import { useTheme } from '../styles/theme';
-import { useDevice } from "../app/_layout";
+import { useDevice } from "../app/device-context";
 
 import Footer from "../components/Footer";
 import AnimatedButton from '../components/AnimatedButton';
@@ -27,9 +27,11 @@ export default function ContactScreen() {
         >
             <ScrollView contentContainerStyle={theme.scrollContainer} keyboardShouldPersistTaps="handled">
                 <View style={theme.mainContainer}>
-                    <Text style={[theme.title, { textAlign: "center" }]}>
-                        Reach Out To Us!
-                    </Text>
+                    {isDesktopWeb && (
+                        <Text style={[theme.title, { textAlign: "center" }]}>
+                            Reach Out To Us!
+                        </Text>
+                    )}
 
                     <View style={styles.formWrap}>
                         <Text style={styles.label}>Name</Text>
@@ -37,6 +39,9 @@ export default function ContactScreen() {
                             value={name}
                             onChangeText={setName}
                             placeholder="Your Name"
+                            placeholderTextColor="rgba(0,0,0,0.5)"
+                            returnKeyType="next"
+                            onSubmitEditing={handleSubmit}
                             style={styles.input}
                         />
 
@@ -44,9 +49,12 @@ export default function ContactScreen() {
                         <TextInput
                             value={email}
                             onChangeText={setEmail}
-                            placeholder="Your Email"
+                            placeholder="user@example.com"
+                            placeholderTextColor="rgba(0,0,0,0.5)"
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            returnKeyType="next"
+                            onSubmitEditing={handleSubmit}
                             style={styles.input}
                         />
 
@@ -55,7 +63,15 @@ export default function ContactScreen() {
                             value={message}
                             onChangeText={setMessage}
                             placeholder="Your Message"
+                            placeholderTextColor="rgba(0,0,0,0.5)"
                             multiline
+                            onSubmitEditing={handleSubmit}
+                            onKeyPress={({ nativeEvent }) => {
+                                if (nativeEvent.key === 'Enter') {
+                                    handleSubmit();
+                                }
+                            }}
+                            returnKeyType="send"
                             style={[styles.input, styles.textarea]}
                         />
                         <AnimatedButton title="Contact" onPress={handleSubmit} />

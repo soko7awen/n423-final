@@ -1,7 +1,7 @@
 import { Animated, Pressable, Text } from 'react-native';
 import { useState, useRef } from 'react';
 
-export default function AnimatedButton({ title, onPress }) {
+export default function AnimatedButton({ title, onPress, buttonStyle, textStyle }) {
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const [pressed, setPressed] = useState(false);
 
@@ -56,12 +56,13 @@ export default function AnimatedButton({ title, onPress }) {
                         shadowRadius: 3,
                         elevation: 3,
                     },
-                    pressed && {
-                        filter: "brightness(1.5)",
-                    },
+                    pressed && { filter: "brightness(1.5)" },
+                    buttonStyle,
                 ]}
             >
-                <Text style={{ color: "#fff", fontSize: 24, fontWeight: "600", userSelect: 'none' }}>{title}</Text>
+                <Text style={[{ color: "#fff", fontSize: 24, fontWeight: "600", userSelect: 'none' }, textStyle]}>
+                    {title}
+                </Text>
             </Pressable>
         </Animated.View>
     );

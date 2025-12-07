@@ -1,28 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { View, Platform, useWindowDimensions } from 'react-native';
+import React, { useEffect } from 'react';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { LexendZetta_400Regular } from '@expo-google-fonts/lexend-zetta';
 import { NotoSans_400Regular } from '@expo-google-fonts/noto-sans';
 import * as SplashScreen from 'expo-splash-screen';
 import WebTopNav from '../components/WebTopNav';
-
-const DeviceContext = createContext({ isDesktopWeb: false });
-
-export const DeviceProvider = ({ children }) => {
-  const { width } = useWindowDimensions();
-  const [isDesktopWeb, setIsDesktopWeb] = useState(Platform.OS === 'web' && width >= 768);
-
-  useEffect(() => {
-    setIsDesktopWeb(Platform.OS === 'web' && width >= 768);
-  }, [width]);
-
-  const value = useMemo(() => ({ isDesktopWeb }), [isDesktopWeb]);
-
-  return <DeviceContext.Provider value={value}>{children}</DeviceContext.Provider>;
-};
-
-export const useDevice = () => useContext(DeviceContext);
+import { AuthProvider } from '../src/auth/AuthContext';
+import { DeviceProvider, useDevice } from './device-context';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -39,9 +24,11 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <DeviceProvider>
-      <AppContent />
-    </DeviceProvider>
+    <AuthProvider>
+      <DeviceProvider>
+        <AppContent />
+      </DeviceProvider>
+    </AuthProvider>
   );
 }
 
@@ -62,7 +49,7 @@ function AppContent() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="about" options={{ title: 'About' }} />
         <Stack.Screen name="contact" options={{ title: 'Contact' }} />
-        <Stack.Screen name="signup" options={{ title: 'Sign Up' }} />
+        <Stack.Screen name="signup" options={{ title: 'Create Account' }} />
         <Stack.Screen name="login" options={{ title: 'Login' }} />
         <Stack.Screen name="search" options={{ title: 'Search' }} />
       </Stack>

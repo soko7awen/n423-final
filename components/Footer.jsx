@@ -1,7 +1,7 @@
 import { View, Text, useWindowDimensions, StyleSheet } from "react-native";
 import { Link } from "expo-router";
 
-import { useDevice } from "../app/_layout";
+import { useDevice } from "../app/device-context";
 
 export default function Footer() {
   const { isDesktopWeb } = useDevice();
