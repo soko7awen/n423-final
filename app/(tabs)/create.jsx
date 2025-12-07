@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Pressable, Image } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Pressable, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -11,6 +11,7 @@ import { useDevice } from "../../app/device-context";
 export default function CreateScreen() {
     const { isDesktopWeb } = useDevice();
     const theme = useTheme();
+    const apiBase = (process.env.EXPO_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
     const [title, setTitle] = useState('');
     const [tgdbId, setTgdbId] = useState('');
@@ -22,8 +23,92 @@ export default function CreateScreen() {
     const [completionValue, setCompletionValue] = useState('');
     const [playerNotes, setPlayerNotes] = useState('');
     const [imageData, setImageData] = useState(null);
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchError, setSearchError] = useState('');
 
     const disabledFieldStyle = { backgroundColor: "#E4E4E4", borderColor: "#CFCFCF", borderWidth: 2 };
+
+    const toggleManualEntry = () => {
+        setManualEntry((prev) => {
+            const next = !prev;
+            if (next) {
+                setTgdbId('');
+            }
+            return next;
+        });
+    };
+
+    useEffect(() => {
+        const cleanedTitle = title.trim();
+        if (!cleanedTitle || cleanedTitle.length < 2) {
+            setSearchResults([]);
+            setSearchError('');
+            return;
+        }
+
+        const controller = new AbortController();
+        const delay = setTimeout(async () => {
+            setSearchLoading(true);
+            setSearchError('');
+            try {
+                const params = new URLSearchParams({
+                    search: cleanedTitle,
+                    limit: '6',
+                });
+                const endpoint = apiBase
+                    ? `${apiBase.replace(/\/$/, '')}/api/igdb/games?${params.toString()}`
+                    : `/api/igdb/games?${params.toString()}`;
+                const response = await fetch(endpoint, {
+                    signal: controller.signal,
+                });
+
+                const contentType = response.headers.get('content-type') || '';
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(text || 'Search failed');
+                }
+
+                if (!contentType.toLowerCase().includes('application/json')) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(text || 'Unexpected response from /api/igdb/games. Make sure the serverless function is running (e.g., via `vercel dev`).');
+                }
+
+                const data = await response.json();
+                const games = Array.isArray(data?.games) ? data.games : [];
+                const normalized = games.map((game) => ({
+                    id: game.id ?? '',
+                    title: game.title,
+                    year: game.year || '',
+                    developer: game.developer || '',
+                    platform: game.platform || '',
+                }));
+
+                setSearchResults(normalized);
+            } catch (err) {
+                if (controller.signal.aborted) return;
+                console.error(err);
+                const message = (err?.message || '').trim();
+                setSearchError(message || 'Could not fetch games. Try again.');
+            } finally {
+                setSearchLoading(false);
+            }
+        }, 450);
+
+        return () => {
+            clearTimeout(delay);
+            controller.abort();
+        };
+    }, [title]);
+
+    const handleSelectGame = (game) => {
+        setTitle(game.title || title);
+        setTgdbId(game.id ? String(game.id) : '');
+        setYear(game.year || '');
+        setDeveloper(game.developer || '');
+        setPlatform(game.platform || '');
+        setSearchResults([]);
+    };
 
     const pickImage = async () => {
         if (!manualEntry) return;
@@ -49,10 +134,10 @@ export default function CreateScreen() {
     };
 
     const renderManualToggle = (extraStyle) => (
-        <Pressable style={[styles.rowTopRight, extraStyle]} onPress={() => setManualEntry((prev) => !prev)}>
+        <Pressable style={[styles.rowTopRight, extraStyle]} onPress={toggleManualEntry}>
             <Pressable
                 style={styles.checkbox}
-                onPress={() => setManualEntry((prev) => !prev)}
+                onPress={toggleManualEntry}
             >
                 {manualEntry && <View style={styles.checkboxInner} />}
             </Pressable>
@@ -80,19 +165,47 @@ export default function CreateScreen() {
                                     placeholderTextColor="rgba(0,0,0,0.5)"
                                     style={[styles.input, !isDesktopWeb && styles.inputMobile]}
                                 />
+                                {title.trim().length >= 2 && (searchLoading || searchError || searchResults.length > 0) && (
+                                    <View style={[styles.searchResultsBox, !isDesktopWeb && styles.searchResultsBoxMobile]}>
+                                        {searchLoading && (
+                                            <View style={styles.searchStatusRow}>
+                                                <ActivityIndicator size="small" color="#333" />
+                                                <Text style={styles.searchStatusText}>Searching TheGamesDB…</Text>
+                                            </View>
+                                        )}
+                                        {!!searchError && (
+                                            <Text style={styles.searchErrorText}>{searchError}</Text>
+                                        )}
+                                        {!searchLoading && !searchError && searchResults.map((game) => (
+                                            <Pressable
+                                                key={`${game.id}-${game.title}`}
+                                                style={styles.searchResult}
+                                                onPress={() => handleSelectGame(game)}
+                                            >
+                                                <Text style={styles.searchResultTitle}>{game.title}</Text>
+                                                <Text style={styles.searchResultMeta}>
+                                                    {[game.platform, game.year].filter(Boolean).join(' • ') || 'No extra details'}
+                                                </Text>
+                                            </Pressable>
+                                        ))}
+                                        {!searchLoading && !searchError && searchResults.length === 0 && (
+                                            <Text style={styles.searchResultEmpty}>No matches yet.</Text>
+                                        )}
+                                    </View>
+                                )}
                             </View>
 
                             <View style={[styles.fieldRow, { gap: 12 }, !isDesktopWeb && styles.fieldRowMobile]}>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={[styles.label, !isDesktopWeb && styles.labelMobile]}>TGDB ID</Text>
+                                    <Text style={[styles.label, !isDesktopWeb && styles.labelMobile]}>IGDB ID</Text>
                                     <TextInput
                                         value={tgdbId}
                                         onChangeText={setTgdbId}
-                                        placeholder="12345"
+                                        placeholder="Auto-filled"
                                         placeholderTextColor="rgba(0,0,0,0.5)"
-                                        style={[styles.input, !isDesktopWeb && styles.inputMobile, !manualEntry && disabledFieldStyle]}
-                                        editable={manualEntry}
-                                        focusable={manualEntry}
+                                        style={[styles.input, !isDesktopWeb && styles.inputMobile, disabledFieldStyle]}
+                                        editable={false}
+                                        focusable={false}
                                     />
                                 </View>
                                 <View style={[{ width: 120 }, !isDesktopWeb && styles.yearMobile]}>
@@ -416,5 +529,60 @@ const styles = StyleSheet.create({
     textareaContainer: {
         flex: 1,
         minHeight: 180,
+    },
+    searchResultsBox: {
+        marginTop: -4,
+        marginBottom: 8,
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "#D0D0D0",
+        borderRadius: 10,
+        paddingVertical: 6,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    searchResultsBoxMobile: {
+        marginTop: 2,
+    },
+    searchResult: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: "#E6E6E6",
+        gap: 2,
+    },
+    searchResultTitle: {
+        fontWeight: '700',
+        fontSize: 16,
+        color: "#222",
+    },
+    searchResultMeta: {
+        fontSize: 14,
+        color: "#555",
+    },
+    searchResultEmpty: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        color: "#666",
+    },
+    searchStatusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+    },
+    searchStatusText: {
+        fontSize: 14,
+        color: "#333",
+    },
+    searchErrorText: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        color: "#B00020",
+        fontWeight: '600',
     },
 });

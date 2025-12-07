@@ -3,14 +3,16 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
+    "dev": "node scripts/dev.js",
     "start": "expo start",
+    "web": "expo start --web",
     "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "ios": "expo start --ios"
   },
   "dependencies": {
     "@expo-google-fonts/lexend-zetta": "^0.4.1",
     "@expo-google-fonts/noto-sans": "^0.4.2",
+    "@react-native-async-storage/async-storage": "^1.23.1",
     "@react-native-masked-view/masked-view": "^0.3.2",
     "expo": "~54.0.25",
     "expo-font": "~14.0.9",
@@ -22,7 +24,6 @@
     "expo-splash-screen": "~31.0.11",
     "expo-status-bar": "~3.0.8",
     "firebase": "^12.6.0",
-    "@react-native-async-storage/async-storage": "^1.23.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
