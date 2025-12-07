@@ -86,16 +86,51 @@ const normalizeGame = (game) => {
     return Number.isFinite(year) ? String(year) : '';
   };
 
+  const buildImageUrl = (imageId, size) => {
+    if (!imageId) return '';
+    return `https://images.igdb.com/igdb/image/upload/${size}/${imageId}.jpg`;
+  };
+
   const developerEntry = Array.isArray(game.involved_companies)
     ? game.involved_companies.find((ic) => ic?.developer && ic?.company?.name)
     : null;
+
+  const releaseDates = Array.isArray(game.release_dates)
+    ? [...game.release_dates].filter((r) => r?.platform && r?.date)
+    : [];
+
+  const earliestRelease = releaseDates.sort((a, b) => {
+    const aDate = a.date || Number.MAX_SAFE_INTEGER;
+    const bDate = b.date || Number.MAX_SAFE_INTEGER;
+    return aDate - bDate;
+  })[0];
+
+  const platformLookup = {};
+  if (Array.isArray(game.platforms)) {
+    game.platforms.forEach((p) => {
+      if (p?.id) {
+        platformLookup[p.id] = p.name || '';
+      }
+    });
+  }
+
+  const platformName =
+    (earliestRelease && platformLookup[earliestRelease.platform]) ||
+    (Array.isArray(game.platforms) && game.platforms[0]?.name) ||
+    '';
+
+  const coverUrl = buildImageUrl(game.cover?.image_id, 't_cover_big');
+  const screenshotUrl = Array.isArray(game.screenshots) && game.screenshots[0]?.image_id
+    ? buildImageUrl(game.screenshots[0].image_id, 't_screenshot_huge')
+    : '';
 
   return {
     id: game.id,
     title: game.name,
     year: toYear(game.first_release_date),
-    platform: Array.isArray(game.platforms) && game.platforms[0]?.name ? game.platforms[0].name : '',
+    platform: platformName,
     developer: developerEntry?.company?.name || '',
+    imageUrl: coverUrl || screenshotUrl || '',
   };
 };
 
@@ -134,7 +169,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const token = await getIgdbToken();
       const body = `
-fields id,name,first_release_date,platforms.name,involved_companies.developer,involved_companies.company.name;
+fields id,name,first_release_date,platforms.id,platforms.name,release_dates.date,release_dates.platform,cover.image_id,screenshots.image_id,involved_companies.developer,involved_companies.company.name;
 search "${search.replace(/"/g, '\\"')}";
 limit ${Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 12) : 6};
 `;

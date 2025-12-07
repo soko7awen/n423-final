@@ -16,7 +16,7 @@ export function useTheme() {
     title: {
       fontSize: 36,
       fontWeight: "700",
-      marginTop: isDesktopWeb ? 40 : 10,
+      marginTop: isDesktopWeb ? 30 : 10,
       marginBottom: 20,
     },
     subtitle: {

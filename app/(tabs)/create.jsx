@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Pressable, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,20 +26,41 @@ export default function CreateScreen() {
     const [searchResults, setSearchResults] = useState([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState('');
+    const skipNextSearch = useRef(false);
 
-    const disabledFieldStyle = { backgroundColor: "#E4E4E4", borderColor: "#CFCFCF", borderWidth: 2 };
+    const disabledFieldStyle = { backgroundColor: "#E4E4E4", borderColor: "#CFCFCF", borderWidth: 1 };
 
     const toggleManualEntry = () => {
         setManualEntry((prev) => {
             const next = !prev;
             if (next) {
                 setTgdbId('');
+            } else {
+                skipNextSearch.current = true;
+                setTitle('');
+                setTgdbId('');
+                setYear('');
+                setDeveloper('');
+                setPlatform('');
+                setCompletionValue('');
+                setPlayerNotes('');
+                setImageData(null);
+                setSearchResults([]);
+                setSearchError('');
             }
             return next;
         });
     };
 
     useEffect(() => {
+        if (skipNextSearch.current) {
+            skipNextSearch.current = false;
+            setSearchResults([]);
+            setSearchError('');
+            setSearchLoading(false);
+            return;
+        }
+
         const cleanedTitle = title.trim();
         if (!cleanedTitle || cleanedTitle.length < 2) {
             setSearchResults([]);
@@ -82,6 +103,7 @@ export default function CreateScreen() {
                     year: game.year || '',
                     developer: game.developer || '',
                     platform: game.platform || '',
+                    imageUrl: game.imageUrl || '',
                 }));
 
                 setSearchResults(normalized);
@@ -102,11 +124,13 @@ export default function CreateScreen() {
     }, [title]);
 
     const handleSelectGame = (game) => {
+        skipNextSearch.current = true;
         setTitle(game.title || title);
         setTgdbId(game.id ? String(game.id) : '');
         setYear(game.year || '');
         setDeveloper(game.developer || '');
         setPlatform(game.platform || '');
+        setImageData(game.imageUrl || null);
         setSearchResults([]);
     };
 
@@ -201,7 +225,7 @@ export default function CreateScreen() {
                                     <TextInput
                                         value={tgdbId}
                                         onChangeText={setTgdbId}
-                                        placeholder="Auto-filled"
+                                        placeholder="ID"
                                         placeholderTextColor="rgba(0,0,0,0.5)"
                                         style={[styles.input, !isDesktopWeb && styles.inputMobile, disabledFieldStyle]}
                                         editable={false}
@@ -258,15 +282,13 @@ export default function CreateScreen() {
                                     isDesktopWeb ? styles.imageDesktop : styles.imageMobile,
                                 ]}
                             >
-                                {manualEntry ? (
-                                    imageData ? (
-                                        <Image source={{ uri: imageData }} style={styles.previewImage} />
-                                    ) : (
-                                        <View style={styles.placeholder}>
-                                            <Ionicons name="image-outline" size={42} color="#666" />
-                                            <Text style={styles.placeholderText}>Tap to add image</Text>
-                                        </View>
-                                    )
+                                {imageData ? (
+                                    <Image source={{ uri: imageData }} style={styles.previewImage} />
+                                ) : manualEntry ? (
+                                    <View style={styles.placeholder}>
+                                        <Ionicons name="image-outline" size={42} color="#666" />
+                                        <Text style={styles.placeholderText}>Tap to add image</Text>
+                                    </View>
                                 ) : (
                                     <View style={styles.disabledPlaceholder}>
                                         <Ionicons name="close-circle" size={80} color="#f2f2f2" />
@@ -422,13 +444,13 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     imageDesktop: {
-        width: 245,
-        aspectRatio: 7 / 5,
+        width: 150,
+        aspectRatio: 2 / 3,
         alignSelf: 'flex-start',
     },
     imageMobile: {
         width: "100%",
-        aspectRatio: 7 / 5,
+        aspectRatio: 2 / 3,
         minHeight: 150,
     },
     previewImage: {
