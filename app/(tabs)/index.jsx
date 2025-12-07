@@ -60,10 +60,10 @@ export default function HomeScreen() {
                 end={{ x: 1, y: 1 }}
             >
                 <View style={styles.welcomeText}>
-                    <Text style={[theme.title, { marginTop: 30, fontSize: 32, textAlign: "center" }]}>
+                    <Text style={[theme.title, { marginTop: 30, fontSize: isDesktopWeb ? 32 : 24, textAlign: "center" }]}>
                         Welcome to LOREBoards!
                     </Text>
-                    <Text style={[theme.subtitle, { textAlign: "center" }]}>
+                    <Text style={[theme.subtitle, { textAlign: "center", fontSize: isDesktopWeb ? 22 : 16 }]}>
                         We love indexing game completions...{"\n"}
                         {"\n"}
                         {user ? (
@@ -86,7 +86,7 @@ export default function HomeScreen() {
                 </View>
             </LinearGradient>
             <View style={theme.mainContainer}>
-                <Text style={[theme.title, { marginLeft: isDesktopWeb ? "5%" : 0 }]}>
+                <Text style={[theme.title, { marginLeft: isDesktopWeb ? "5%" : 0, fontSize: isDesktopWeb ? 36 : 24 }]}>
                     Latest Submissions:
                 </Text>
 
