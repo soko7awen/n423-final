@@ -62,7 +62,7 @@ npm run dev
 - The IGDB proxy must be available at `/api/igdb/*`. On Web 4/Vercel you can deploy `api/local-igdb-server.js` (or equivalent serverless functions) and point `EXPO_PUBLIC_API_BASE_URL` to that host.
 - Firebase project should include Firestore and Email/Password auth enabled; Firestore rules must allow the reads/writes implied by the CRUD flows.
 
-## How to Use (Instructor Ready)
+## How to Use
 - Sign up or log in, then open `/submit`.
 - Search for a game (IGDB) or toggle “Manual Game Entry”; lock metadata, pick/resize a cover, choose completion type/value, add notes, and submit.
 - Browse the animated home feed or filter on `/search`; edit/delete only your own cards.
