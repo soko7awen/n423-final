@@ -238,6 +238,8 @@ export default function HomeScreen() {
                         {submissions.map((s) => (
                             <GameCard
                                 key={s.id}
+                                gameId={s.gameId}
+                                igdbId={s.igdbId}
                                 title={s.title}
                                 year={s.year}
                                 platform={s.platform}

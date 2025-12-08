@@ -10,6 +10,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
 
 import { useTheme } from '../styles/theme';
@@ -21,13 +22,36 @@ import { db } from '../src/firebase/firebaseConfig';
 export default function SearchScreen() {
     const { isDesktopWeb } = useDevice();
     const theme = useTheme();
-    const [queryText, setQueryText] = useState('');
-    const [userQuery, setUserQuery] = useState('');
+    const params = useLocalSearchParams();
+    const getParam = (key) => {
+        const value = params[key];
+        return Array.isArray(value) ? value[0] : (value || '');
+    };
+    const initialQuery = getParam('query');
+    const initialUser = getParam('user');
+    const initialGameId = getParam('gameId');
+    const initialIgdbId = '';
+    const [queryText, setQueryText] = useState(initialQuery);
+    const [userQuery, setUserQuery] = useState(initialUser);
+    const [gameIdParam, setGameIdParam] = useState(initialGameId);
+    const [igdbIdParam, setIgdbIdParam] = useState(initialIgdbId);
     const [sortOption, setSortOption] = useState('newest');
-    const [showParameters, setShowParameters] = useState(false);
+    const [showParameters, setShowParameters] = useState(Boolean(initialUser));
     const [submissions, setSubmissions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+
+    useEffect(() => {
+        const q = getParam('query');
+        const u = getParam('user');
+        const g = getParam('gameId');
+        if (typeof q === 'string') setQueryText(q);
+        if (typeof u === 'string') {
+            setUserQuery(u);
+            if (u.trim()) setShowParameters(true);
+        }
+        if (typeof g === 'string') setGameIdParam(g);
+    }, [params.query, params.user, params.gameId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -80,6 +104,7 @@ export default function SearchScreen() {
     const results = useMemo(() => {
         const text = queryText.trim().toLowerCase();
         const userText = userQuery.trim().toLowerCase();
+        const gameIdFilter = (gameIdParam || '').trim();
         const toMillis = (ts) => {
             if (!ts) return 0;
             if (typeof ts.toMillis === 'function') return ts.toMillis();
@@ -112,7 +137,8 @@ export default function SearchScreen() {
             ].filter(Boolean).join(' ').toLowerCase();
             const matchesQuery = !text || haystack.includes(text);
             const matchesUser = !userText || userHaystack.includes(userText);
-            return matchesQuery && matchesUser;
+            const matchesGameId = !gameIdFilter || s.gameId === gameIdFilter;
+            return matchesQuery && matchesUser && matchesGameId;
         });
 
         const sorter = sorters[sortOption] || sorters.newest;
@@ -230,6 +256,7 @@ export default function SearchScreen() {
                                         {results.map((s) => (
                                             <GameCard
                                                 key={s.id}
+                                                gameId={s.gameId}
                                                 title={s.title}
                                                 year={s.year}
                                                 platform={s.platform}
@@ -279,6 +306,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.4,
         shadowRadius: 6,
         elevation: 6,
+        marginTop: 30,
     },
     searchRow: {
         flexDirection: 'row',

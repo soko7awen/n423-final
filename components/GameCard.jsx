@@ -7,6 +7,8 @@ import { useDevice } from "../app/device-context";
 const fallbackImage = 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=80';
 
 export default function GameCard({
+    gameId,
+    igdbId,
     title,
     year,
     platform,
@@ -255,6 +257,21 @@ export default function GameCard({
     const displayName = userName || 'Player';
     const displayPhoto = userPhoto ? { uri: userPhoto } : null;
     const completionDisplay = completionValue ? `${completionValue}` : '—';
+    const pushSearch = ({ query, user, gameId: gameIdParam }) => {
+        const params = new URLSearchParams();
+        if (query) params.set('query', query);
+        if (user) params.set('user', user);
+        if (gameIdParam) params.set('gameId', gameIdParam);
+        const qs = params.toString();
+        router.push(`/search${qs ? `?${qs}` : ''}`);
+    };
+    const handleOpenGameSearch = () => {
+        pushSearch({ gameId: gameId || '' });
+    };
+    const handleOpenUserSearch = () => {
+        const userQuery = displayName?.trim();
+        if (userQuery) pushSearch({ user: userQuery });
+    };
 
     return (
         <View style={styles.cardSlot}>
@@ -269,7 +286,7 @@ export default function GameCard({
             >
                 <Pressable
                     style={styles.titleWrap}
-                    onPress={() => router.push("/search?game")}
+                    onPress={handleOpenGameSearch}
                     onHoverIn={handleCardHoverIn}
                 >
                     {({ hovered, pressed }) => (
@@ -296,7 +313,7 @@ export default function GameCard({
                 </Pressable>
                 <View style={styles.innerCard}>
                     <Pressable
-                        onPress={() => router.push("/search?game")}
+                        onPress={handleOpenGameSearch}
                         onHoverIn={handleCardHoverIn}
                     >
                         {({ hovered }) => (
@@ -318,7 +335,7 @@ export default function GameCard({
                             <Pressable
                                 onPress={(event) => {
                                     event.stopPropagation();
-                                    router.push("/search?profile");
+                                    handleOpenUserSearch();
                                 }}
                                 style={({ hovered, pressed }) => [
                                     styles.userProfile,
