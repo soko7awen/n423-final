@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
     const safeTerm = search.replace(/"/g, '\\"');
     const body = `
 search "${safeTerm}";
-fields id,name,abbreviation,generation,release_dates.date;
+fields id,name,abbreviation,generation;
 limit ${limit};
 `;
 
@@ -38,11 +38,7 @@ limit ${limit};
         name: p.name || '',
         abbreviation: p.abbreviation || '',
         generation: p.generation || null,
-        releaseDates: Array.isArray(p.release_dates)
-          ? [...p.release_dates].sort(
-            (a, b) => (a?.date || Number.MAX_SAFE_INTEGER) - (b?.date || Number.MAX_SAFE_INTEGER)
-          )
-          : [],
+        releaseDates: [],
       }))
       : [];
     return respond(res, 200, { platforms: normalized });
