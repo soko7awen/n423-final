@@ -220,10 +220,19 @@ limit ${Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 12) : 6};
       });
 
       const platformVersionMap = new Map();
-      if (platformIds.size) {
+      const numericIds = Array.from(platformIds)
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+      if (numericIds.length) {
+        const idList = numericIds.join(',');
         const pvBody = `
 fields platform,name,release_dates.date;
-where platform = (${Array.from(platformIds).join(',')});
+where platform = (${idList});
+limit 200;
+`;
+        const fallbackPlatformsBody = `
+fields id,name,release_dates.date;
+where id = (${idList});
 limit 200;
 `;
         try {
@@ -248,7 +257,34 @@ limit 200;
             }
           });
         } catch (err) {
-          console.warn('[igdb] failed to load platform_versions', err);
+          if (err?.status === 400) {
+            console.info('[igdb] platform_versions unsupported, falling back to platforms');
+          } else {
+            console.warn('[igdb] failed to load platform_versions, falling back to platforms', err?.status || '', err?.message || '');
+          }
+          try {
+            const platforms = await fetchJson('https://api.igdb.com/v4/platforms', {
+              method: 'POST',
+              headers: {
+                'Client-ID': process.env.IGDB_CLIENT_ID,
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'text/plain',
+              },
+              body: fallbackPlatformsBody,
+            });
+            platforms.forEach((p) => {
+              const sorted = Array.isArray(p.release_dates)
+                ? [...p.release_dates].sort((a, b) => (a?.date || Number.MAX_SAFE_INTEGER) - (b?.date || Number.MAX_SAFE_INTEGER))
+                : [];
+              platformVersionMap.set(p.id, {
+                platform: p.id,
+                platformData: p,
+                release_dates: sorted,
+              });
+            });
+          } catch (e) {
+            console.warn('[igdb] fallback platforms also failed', e?.status || '', e?.message || '');
+          }
         }
       }
 

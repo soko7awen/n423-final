@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Pressable, Image, ActivityIndicator, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Pressable, Image, ActivityIndicator, Modal, Alert } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -14,6 +14,7 @@ import { db } from '../../src/firebase/firebaseConfig';
 
 export default function CreateScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
     const { isDesktopWeb } = useDevice();
     const { user } = useAuth();
     const theme = useTheme();
@@ -28,6 +29,14 @@ export default function CreateScreen() {
     const [selectedReleases, setSelectedReleases] = useState([]);
     const [platformOptions, setPlatformOptions] = useState([]);
     const [manualEntry, setManualEntry] = useState(false);
+    const [editingSubmissionId, setEditingSubmissionId] = useState(() => {
+        const raw = params?.edit;
+        if (Array.isArray(raw)) return raw[0] || '';
+        return raw ? String(raw) : '';
+    });
+    const [editingOwnerId, setEditingOwnerId] = useState('');
+    const [loadingEdit, setLoadingEdit] = useState(false);
+    const [editLoadError, setEditLoadError] = useState('');
     const [completionType, setCompletionType] = useState('high-score');
     const [completionValue, setCompletionValue] = useState('');
     const [playerNotes, setPlayerNotes] = useState('');
@@ -48,11 +57,11 @@ export default function CreateScreen() {
     const [submitSuccess, setSubmitSuccess] = useState('');
     const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
     const [showManualPlatformDropdown, setShowManualPlatformDropdown] = useState(false);
-    const [manualAddMode, setManualAddMode] = useState(false);
     const [newPlatformText, setNewPlatformText] = useState('');
     const [platformSearchResults, setPlatformSearchResults] = useState([]);
     const [platformSearchLoading, setPlatformSearchLoading] = useState(false);
     const [platformSearchError, setPlatformSearchError] = useState('');
+    const isEditing = Boolean(editingSubmissionId);
     const allPlatformNames = useMemo(() => {
         const names = [];
         const addName = (val) => {
@@ -77,6 +86,35 @@ export default function CreateScreen() {
             return true;
         });
     }, [platformOptions]);
+
+    const platformNameExists = (name) => {
+        const lower = (name || '').trim().toLowerCase();
+        if (!lower) return false;
+        const inOptions = platformOptions.some((p) => (p || '').trim().toLowerCase() === lower);
+        const inSelected = selectedPlatforms.some((p) => (p || '').trim().toLowerCase() === lower);
+        const inReleases = selectedReleases.some((r) => (r?.name || '').trim().toLowerCase() === lower);
+        const inSearch = platformSearchResults.some((p) => (p?.name || '').trim().toLowerCase() === lower);
+        return inOptions || inSelected || inReleases || inSearch;
+    };
+
+    const handleAddPlatform = (name) => {
+        const trimmed = (name || '').trim();
+        if (!trimmed) return;
+        setPlatformOptions((prev) => {
+            const exists = prev.some((p) => (p || '').trim().toLowerCase() === trimmed.toLowerCase());
+            return exists ? prev : [...prev, trimmed];
+        });
+        setSelectedPlatforms([trimmed]);
+        setSelectedReleases((prev) => {
+            const filtered = prev.filter((r) => r.name !== trimmed);
+            return [...filtered, { name: trimmed, date: null }];
+        });
+        setPlatform(trimmed);
+        setShowPlatformDropdown(false);
+        setShowManualPlatformDropdown(false);
+        setPlatformSearchResults([]);
+        setNewPlatformText('');
+    };
 
     const dedupeReleases = (list) => {
         const byName = new Map();
@@ -123,7 +161,20 @@ export default function CreateScreen() {
         if (!user) missing.push('sign-in');
         return missing;
     }, [completionValue, developer, platform, playerNotes, title, user, year]);
-    const isSubmitDisabled = submitting || missingFields.length > 0;
+    const isSubmitDisabled = submitting || loadingEdit || missingFields.length > 0;
+    const showSweetAlert = async (titleMsg, message, type = 'info') => {
+        if (Platform.OS === 'web') {
+            try {
+                // eslint-disable-next-line global-require
+                const swal = require('sweetalert');
+                await swal(titleMsg, message, type);
+                return;
+            } catch (err) {
+                console.warn('SweetAlert failed, falling back to native alert', err);
+            }
+        }
+        Alert.alert(titleMsg, message);
+    };
 
     const disabledFieldStyle = { backgroundColor: "#E4E4E4", borderColor: "#CFCFCF", borderWidth: 1 };
 
@@ -178,11 +229,132 @@ export default function CreateScreen() {
             setPlatformSearchError('');
             setPlatformSearchLoading(false);
             setShowManualPlatformDropdown(false);
-            setManualAddMode(false);
             setNewPlatformText('');
             return next;
         });
     };
+
+    useEffect(() => {
+        const raw = params?.edit;
+        const normalized = Array.isArray(raw) ? raw[0] : raw;
+        setEditingSubmissionId(normalized ? String(normalized) : '');
+    }, [params]);
+
+    useEffect(() => {
+        if (!editingSubmissionId) {
+            setEditLoadError('');
+            setLoadingEdit(false);
+            return;
+        }
+
+        let cancelled = false;
+        const loadSubmission = async () => {
+            setLoadingEdit(true);
+            setEditLoadError('');
+            try {
+                const submissionSnap = await getDoc(doc(db, 'submissions', editingSubmissionId));
+                if (!submissionSnap.exists()) {
+                    if (!cancelled) {
+                        setEditLoadError('Submission not found.');
+                        setEditingSubmissionId('');
+                    }
+                    return;
+                }
+                const data = submissionSnap.data() || {};
+                if (cancelled) return;
+
+                skipNextSearch.current = true;
+                setSubmitError('');
+                setSubmitSuccess('');
+                setTitle(data.title || '');
+                setTgdbId(data.igdbId || '');
+                setYear(data.year || '');
+                setDeveloper(data.developer || '');
+                setPlatform(data.platform || '');
+                setCompletionType(data.completionType || 'high-score');
+                setCompletionValue(data.completionValue || '');
+                setPlayerNotes(data.playerNotes || '');
+                setImageData(data.imageUrl || null);
+                setLoreGameId(data.gameId || '');
+                setEditingOwnerId(data.userId || '');
+
+                const isManual = data.manual === true;
+                setManualEntry(isManual);
+                setTitleLocked(!isManual);
+                setMetadataLocked(!isManual);
+
+                let releases = [];
+                let platformNames = [];
+                let developerFromGame = '';
+                let yearFromGame = '';
+
+                if (data.gameId) {
+                    try {
+                        const gameSnap = await getDoc(doc(db, 'games', data.gameId));
+                        if (gameSnap.exists()) {
+                            const gameData = gameSnap.data() || {};
+                            releases = Array.isArray(gameData.releases) ? dedupeReleases(gameData.releases) : [];
+                            platformNames = normalizePlatformNames(releases, gameData.platforms, gameData.platform);
+                            developerFromGame = gameData.developer || '';
+                            yearFromGame = gameData.year || '';
+                            if (!data.imageUrl && gameData.imageUrl) {
+                                setImageData(gameData.imageUrl);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Failed to load game for edit', err);
+                    }
+                }
+
+                const normalizedReleases = releases.length
+                    ? releases
+                    : (platformNames.length
+                        ? platformNames.map((name) => ({ name, date: null }))
+                        : (data.platform ? [{ name: data.platform, date: null }] : []));
+
+                const normalizedPlatforms = platformNames.length
+                    ? platformNames
+                    : normalizePlatformNames(normalizedReleases, [], data.platform);
+
+                if (!data.developer && developerFromGame) setDeveloper(developerFromGame);
+                if (!data.year && yearFromGame) setYear(yearFromGame);
+
+                setSelectedReleases(normalizedReleases);
+                setPlatformOptions(normalizedPlatforms);
+                setSelectedPlatforms(
+                    normalizedPlatforms.length
+                        ? [normalizedPlatforms[0]]
+                        : data.platform
+                            ? [data.platform]
+                            : []
+                );
+                setPlatform(
+                    normalizedPlatforms[0]
+                    || data.platform
+                    || normalizedReleases[0]?.name
+                    || ''
+                );
+
+                setSearchResults([]);
+                setRemoteResults([]);
+                setLocalResults([]);
+                setSearchLoading(false);
+                setSearchError('');
+                setShowPlatformDropdown(false);
+                setShowManualPlatformDropdown(false);
+            } catch (err) {
+                console.warn('Failed to load submission for edit', err);
+                if (!cancelled) {
+                    setEditLoadError('Could not load submission.');
+                }
+            } finally {
+                if (!cancelled) setLoadingEdit(false);
+            }
+        };
+
+        loadSubmission();
+        return () => { cancelled = true; };
+    }, [db, editingSubmissionId]);
 
     useEffect(() => {
         if (manualEntry) {
@@ -530,7 +702,9 @@ export default function CreateScreen() {
         if (!playerNotes.trim()) missing.push('player notes');
         if (!user) missing.push('sign in');
         if (missing.length) {
-            setSubmitError(`Please fill ${missing.join(', ')}${missing.includes('sign in') ? ' (sign in required).' : '.'}`);
+            const message = `Please fill ${missing.join(', ')}${missing.includes('sign in') ? ' (sign in required).' : '.'}`;
+            setSubmitError(message);
+            showSweetAlert('Missing info', message, 'error');
             return false;
         }
         return true;
@@ -539,6 +713,11 @@ export default function CreateScreen() {
     const handleSubmit = async () => {
         setSubmitError('');
         setSubmitSuccess('');
+        if (isEditing && editingOwnerId && user?.uid && user.uid !== editingOwnerId) {
+            setSubmitError('You can only edit your own submission.');
+            return;
+        }
+        if (loadingEdit) return;
         if (!validateForm()) return;
         setSubmitting(true);
         try {
@@ -586,9 +765,9 @@ export default function CreateScreen() {
                 await setDoc(doc(db, 'games', gameId), baseGame, { merge: true });
             }
 
-            await addDoc(collection(db, 'submissions'), {
+            const submissionPayload = {
                 gameId,
-                userId: user?.uid || 'anonymous',
+                userId: user?.uid || editingOwnerId || 'anonymous',
                 title: cleanedTitle,
                 titleLower: cleanedTitle.toLowerCase(),
                 year: year.trim(),
@@ -601,14 +780,26 @@ export default function CreateScreen() {
                 playerNotes: playerNotes.trim(),
                 source: baseGame.source,
                 manual: baseGame.manual,
-                createdAt: serverTimestamp(),
-            });
+                updatedAt: serverTimestamp(),
+            };
 
-            setSubmitSuccess('Submission saved to LOREBoards.');
+            if (isEditing) {
+                await setDoc(doc(db, 'submissions', editingSubmissionId), submissionPayload, { merge: true });
+            } else {
+                await addDoc(collection(db, 'submissions'), {
+                    ...submissionPayload,
+                    createdAt: serverTimestamp(),
+                });
+            }
+
+            const successMessage = isEditing ? 'Submission updated.' : 'Submission saved to LOREBoards.';
+            setSubmitSuccess(successMessage);
+            await showSweetAlert('Success', successMessage, 'success');
             router.replace('/');
         } catch (err) {
             console.error(err);
             setSubmitError(err?.message || 'Could not submit. Try again.');
+            showSweetAlert('Error', err?.message || 'Could not submit. Try again.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -697,7 +888,19 @@ export default function CreateScreen() {
                 <ScrollView contentContainerStyle={theme.scrollContainer} keyboardShouldPersistTaps="handled">
                     <View style={theme.mainContainer}>
                         {isDesktopWeb && (
-                            <Text style={[theme.title, { textAlign: "center" }]}>Submit New Game Completion</Text>
+                            <Text style={[theme.title, { textAlign: "center" }]}>
+                                {isEditing ? 'Edit Submission' : 'Submit New Game Completion'}
+                            </Text>
+                        )}
+                        {!!editLoadError && (
+                            <Text style={{ color: "#B00020", marginBottom: 10, textAlign: 'center' }}>
+                                {editLoadError}
+                            </Text>
+                        )}
+                        {loadingEdit && (
+                            <Text style={{ color: "#444", marginBottom: 10, textAlign: 'center' }}>
+                                Loading submission…
+                            </Text>
                         )}
 
                         {/*
@@ -757,7 +960,7 @@ export default function CreateScreen() {
                                         />
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={[styles.label, !isDesktopWeb && styles.labelMobile]}>LOREBoards ID</Text>
+                                        <Text style={[styles.label, !isDesktopWeb && styles.labelMobile]}>LORE ID</Text>
                                         <TextInput
                                             value={loreGameId}
                                             onChangeText={setLoreGameId}
@@ -822,12 +1025,11 @@ export default function CreateScreen() {
                                             onPress={() => {
                                                 setShowPlatformDropdown((prev) => {
                                                     const next = !prev;
-                                                    if (!next) {
-                                                        setNewPlatformText('');
-                                                    }
-                                                    return next;
-                                                });
-                                                setManualAddMode(false);
+                                                if (!next) {
+                                                    setNewPlatformText('');
+                                                }
+                                                return next;
+                                            });
                                             }}
                                         >
                                             <Text style={styles.platformSelectText}>
@@ -844,74 +1046,81 @@ export default function CreateScreen() {
                                                 <TextInput
                                                     value={newPlatformText}
                                                     onChangeText={setNewPlatformText}
-                                                    placeholder="Search for newC platform"
+                                                    placeholder="Search or add a platform"
                                                     placeholderTextColor="rgba(0,0,0,0.5)"
                                                     style={styles.platformSearchInput}
                                                 />
-                                                {platformSearchLoading && (
-                                                    <View style={styles.platformSuggestionStatusRow}>
-                                                        <ActivityIndicator size="small" color="#333" />
-                                                        <Text style={styles.platformSuggestionStatusText}>Searching IGDB…</Text>
-                                                    </View>
-                                                )}
-                                                {!!platformSearchError && (
-                                                    <Text style={styles.platformSuggestionError}>{platformSearchError}</Text>
-                                                )}
-                                                {!platformSearchLoading && !platformSearchError && platformSearchResults.map((p) => (
+                                                <View style={styles.platformSuggestionScroll}>
+                                                    <ScrollView nestedScrollEnabled>
+                                                        {platformSearchLoading && (
+                                                            <View style={styles.platformSuggestionStatusRow}>
+                                                                <ActivityIndicator size="small" color="#333" />
+                                                                <Text style={styles.platformSuggestionStatusText}>Searching IGDB…</Text>
+                                                            </View>
+                                                        )}
+                                                        {!!platformSearchError && (
+                                                            <Text style={styles.platformSuggestionError}>{platformSearchError}</Text>
+                                                        )}
+                                                        {!platformSearchLoading && !platformSearchError && platformSearchResults.map((p) => (
+                                                            <Pressable
+                                                                key={p.id || p.name}
+                                                                style={styles.platformSuggestionRow}
+                                                                onPress={() => {
+                                                                    const name = p.name || '';
+                                                                    if (!name) return;
+                                                                    handleAddPlatform(name);
+                                                                }}
+                                                            >
+                                                                <Text style={styles.platformSuggestionName}>{p.name}</Text>
+                                                                <Text style={styles.platformSuggestionMeta}>
+                                                                    {[p.abbreviation, p.generation ? `Gen ${p.generation}` : ''].filter(Boolean).join(' • ')}
+                                                                </Text>
+                                                            </Pressable>
+                                                        ))}
+                                                        {!platformSearchLoading && !platformSearchError && platformSearchResults.length === 0 && (
+                                                            <Text style={styles.platformSuggestionEmpty}>No matches yet.</Text>
+                                                        )}
+                                                        {platformChoices.map((p) => (
+                                                            <Pressable
+                                                                key={p}
+                                                                style={[
+                                                                    styles.platformOption,
+                                                                    selectedPlatforms.includes(p) && styles.platformOptionActive,
+                                                                ]}
+                                                                onPress={() => {
+                                                                    const existingRelease = selectedReleases.find((r) => r.name === p);
+                                                                    setSelectedPlatforms([p]);
+                                                                    setSelectedReleases((prev) => {
+                                                                        const filtered = prev.filter((r) => r.name !== p);
+                                                                        return existingRelease ? [...filtered, existingRelease] : [...filtered, { name: p, date: null }];
+                                                                    });
+                                                                    setPlatform(p);
+                                                                    setShowPlatformDropdown(false);
+                                                                }}
+                                                            >
+                                                                <Text
+                                                                    style={[
+                                                                        styles.platformOptionText,
+                                                                        selectedPlatforms.includes(p) && styles.platformOptionTextActive,
+                                                                    ]}
+                                                                >
+                                                                    {p}
+                                                                </Text>
+                                                            </Pressable>
+                                                        ))}
+                                                    </ScrollView>
+                                                </View>
+                                                {newPlatformText.trim().length >= 2 && !platformNameExists(newPlatformText) && (
                                                     <Pressable
-                                                        key={p.id || p.name}
-                                                        style={styles.platformSuggestionRow}
-                                                        onPress={() => {
-                                                            const name = p.name || '';
-                                                            if (!name) return;
-                                                            setNewPlatformText('');
-                                                            setPlatformOptions((prev) => prev.includes(name) ? prev : [...prev, name]);
-                                                            setSelectedPlatforms([name]);
-                                                            setSelectedReleases((prev) => {
-                                                                const filtered = prev.filter((r) => r.name !== name);
-                                                                return [...filtered, { name, date: null }];
-                                                            });
-                                                            setPlatform(name);
-                                                            setShowPlatformDropdown(false);
-                                                        }}
+                                                        style={styles.platformAddRow}
+                                                        onPress={() => handleAddPlatform(newPlatformText)}
                                                     >
-                                                        <Text style={styles.platformSuggestionName}>{p.name}</Text>
-                                                        <Text style={styles.platformSuggestionMeta}>
-                                                            {[p.abbreviation, p.generation ? `Gen ${p.generation}` : ''].filter(Boolean).join(' • ')}
+                                                        <Ionicons name="add-circle-outline" size={18} color="#1f4b99" />
+                                                        <Text style={styles.platformAddText}>
+                                                            Add "{newPlatformText.trim()}"
                                                         </Text>
                                                     </Pressable>
-                                                ))}
-                                                {!platformSearchLoading && !platformSearchError && platformSearchResults.length === 0 && (
-                                                    <Text style={styles.platformSuggestionEmpty}>No matches yet.</Text>
                                                 )}
-                                                {platformChoices.map((p) => (
-                                                    <Pressable
-                                                        key={p}
-                                                        style={[
-                                                            styles.platformOption,
-                                                            selectedPlatforms.includes(p) && styles.platformOptionActive,
-                                                        ]}
-                                                        onPress={() => {
-                                                            const existingRelease = selectedReleases.find((r) => r.name === p);
-                                                            setSelectedPlatforms([p]);
-                                                            setSelectedReleases((prev) => {
-                                                                const filtered = prev.filter((r) => r.name !== p);
-                                                                return existingRelease ? [...filtered, existingRelease] : [...filtered, { name: p, date: null }];
-                                                            });
-                                                            setPlatform(p);
-                                                            setShowPlatformDropdown(false);
-                                                        }}
-                                                    >
-                                                        <Text
-                                                            style={[
-                                                                styles.platformOptionText,
-                                                                selectedPlatforms.includes(p) && styles.platformOptionTextActive,
-                                                            ]}
-                                                        >
-                                                            {p}
-                                                        </Text>
-                                                    </Pressable>
-                                                ))}
                                             </View>
                                         )}
                                     </View>
@@ -930,7 +1139,6 @@ export default function CreateScreen() {
                                                     }
                                                     return next;
                                                 });
-                                                setManualAddMode(false);
                                             }}
                                         >
                                             <Text style={styles.platformSelectText}>
@@ -947,101 +1155,84 @@ export default function CreateScreen() {
                                                 <TextInput
                                                     value={newPlatformText}
                                                     onChangeText={setNewPlatformText}
-                                                    placeholder="Search platform"
+                                                    placeholder="Search or add a platform"
                                                     placeholderTextColor="rgba(0,0,0,0.5)"
                                                     style={[styles.platformSearchInput]}
                                                 />
-                                                {platformSearchLoading && (
-                                                    <View style={styles.platformSuggestionStatusRow}>
-                                                        <ActivityIndicator size="small" color="#333" />
-                                                        <Text style={styles.platformSuggestionStatusText}>Searching IGDB…</Text>
-                                                    </View>
-                                                )}
-                                                {!!platformSearchError && (
-                                                    <Text style={styles.platformSuggestionError}>{platformSearchError}</Text>
-                                                )}
-                                                {!platformSearchLoading && !platformSearchError && platformSearchResults.map((p) => (
+                                                <View style={styles.platformSuggestionScroll}>
+                                                    <ScrollView nestedScrollEnabled>
+                                                        {platformSearchLoading && (
+                                                            <View style={styles.platformSuggestionStatusRow}>
+                                                                <ActivityIndicator size="small" color="#333" />
+                                                                <Text style={styles.platformSuggestionStatusText}>Searching IGDB…</Text>
+                                                            </View>
+                                                        )}
+                                                        {!!platformSearchError && (
+                                                            <Text style={styles.platformSuggestionError}>{platformSearchError}</Text>
+                                                        )}
+                                                        {!platformSearchLoading && !platformSearchError && platformSearchResults.map((p) => (
+                                                            <Pressable
+                                                                key={p.id || p.name}
+                                                                style={styles.platformSuggestionRow}
+                                                                onPress={() => {
+                                                                    const name = p.name || '';
+                                                                    if (!name) return;
+                                                                    handleAddPlatform(name);
+                                                                }}
+                                                            >
+                                                                <Text style={styles.platformSuggestionName}>{p.name}</Text>
+                                                                <Text style={styles.platformSuggestionMeta}>
+                                                                    {[p.abbreviation, p.generation ? `Gen ${p.generation}` : ''].filter(Boolean).join(' • ')}
+                                                                </Text>
+                                                            </Pressable>
+                                                        ))}
+                                                        {!platformSearchLoading && !platformSearchError && platformSearchResults.length === 0 && (
+                                                            <Text style={styles.platformSuggestionEmpty}>No matches yet.</Text>
+                                                        )}
+                                                        {platformChoices.map((p) => (
+                                                            <Pressable
+                                                                key={p}
+                                                                style={[
+                                                                    styles.platformOption,
+                                                                    selectedPlatforms.includes(p) && styles.platformOptionActive,
+                                                                ]}
+                                                                onPress={() => {
+                                                                    const existingRelease = selectedReleases.find((r) => r.name === p);
+                                                                    setSelectedPlatforms([p]);
+                                                                    setSelectedReleases((prev) => {
+                                                                        const filtered = prev.filter((r) => r.name !== p);
+                                                                        return existingRelease ? [...filtered, existingRelease] : [...filtered, { name: p, date: null }];
+                                                                    });
+                                                                    setPlatform(p);
+                                                                    setShowManualPlatformDropdown(false);
+                                                                }}
+                                                            >
+                                                                <Text
+                                                                    style={[
+                                                                        styles.platformOptionText,
+                                                                        selectedPlatforms.includes(p) && styles.platformOptionTextActive,
+                                                                    ]}
+                                                                >
+                                                                    {p}
+                                                                </Text>
+                                                            </Pressable>
+                                                        ))}
+                                                    </ScrollView>
+                                                </View>
+                                                {newPlatformText.trim().length >= 2 && !platformNameExists(newPlatformText) && (
                                                     <Pressable
-                                                        key={p.id || p.name}
-                                                        style={styles.platformSuggestionRow}
-                                                        onPress={() => {
-                                                            const name = p.name || '';
-                                                            if (!name) return;
-                                                            setNewPlatformText('');
-                                                            setPlatformOptions((prev) => prev.includes(name) ? prev : [...prev, name]);
-                                                            setSelectedPlatforms([name]);
-                                                            setSelectedReleases((prev) => {
-                                                                const filtered = prev.filter((r) => r.name !== name);
-                                                                return [...filtered, { name, date: null }];
-                                                            });
-                                                            setPlatform(name);
-                                                            setShowManualPlatformDropdown(false);
-                                                        }}
+                                                        style={styles.platformAddRow}
+                                                        onPress={() => handleAddPlatform(newPlatformText)}
                                                     >
-                                                        <Text style={styles.platformSuggestionName}>{p.name}</Text>
-                                                        <Text style={styles.platformSuggestionMeta}>
-                                                            {[p.abbreviation, p.generation ? `Gen ${p.generation}` : ''].filter(Boolean).join(' • ')}
+                                                        <Ionicons name="add-circle-outline" size={18} color="#1f4b99" />
+                                                        <Text style={styles.platformAddText}>
+                                                            Add "{newPlatformText.trim()}"
                                                         </Text>
                                                     </Pressable>
-                                                ))}
-                                                {!platformSearchLoading && !platformSearchError && platformSearchResults.length === 0 && (
-                                                    <Text style={styles.platformSuggestionEmpty}>No matches yet.</Text>
                                                 )}
                                             </View>
                                         )}
                                     </View>
-                                )}
-                                {manualAddMode ? (
-                                    <View style={styles.manualAddRow}>
-                                        <TextInput
-                                            value={newPlatformText}
-                                            onChangeText={setNewPlatformText}
-                                            placeholder="Enter custom platform"
-                                            placeholderTextColor="rgba(0,0,0,0.5)"
-                                            style={[styles.input, !isDesktopWeb && styles.inputMobile, { marginBottom: 4 }]}
-                                        />
-                                        <View style={styles.manualAddActions}>
-                                            <Pressable
-                                                style={[styles.addPlatformBtn, styles.addPlatformBtnSecondary]}
-                                                onPress={() => {
-                                                    setManualAddMode(false);
-                                                    setNewPlatformText('');
-                                                }}
-                                            >
-                                                <Text style={styles.addPlatformBtnTextSecondary}>Cancel</Text>
-                                            </Pressable>
-                                            <Pressable
-                                                style={styles.addPlatformBtn}
-                                                onPress={() => {
-                                                    const trimmed = newPlatformText.trim();
-                                                    if (!trimmed) return;
-                                                    setPlatformOptions((prev) => prev.includes(trimmed) ? prev : [...prev, trimmed]);
-                                                    setSelectedPlatforms([trimmed]);
-                                                    setSelectedReleases((prev) => {
-                                                        const filtered = prev.filter((r) => r.name !== trimmed);
-                                                        return [...filtered, { name: trimmed, date: null }];
-                                                    });
-                                                    setPlatform(trimmed);
-                                                    setManualAddMode(false);
-                                                    setShowManualPlatformDropdown(false);
-                                                    setShowPlatformDropdown(false);
-                                                }}
-                                            >
-                                                <Text style={styles.addPlatformBtnText}>Add</Text>
-                                            </Pressable>
-                                        </View>
-                                    </View>
-                                ) : (
-                                    <Pressable
-                                        style={[styles.addPlatformBtn, { alignSelf: 'flex-start' }]}
-                                        onPress={() => {
-                                            setManualAddMode(true);
-                                            setShowManualPlatformDropdown(false);
-                                            setShowPlatformDropdown(false);
-                                        }}
-                                    >
-                                        <Text style={styles.addPlatformBtnText}>Add custom platform</Text>
-                                    </Pressable>
                                 )}
                             </View>
 
@@ -1125,8 +1316,6 @@ export default function CreateScreen() {
                                 </View>
                             </View>
                             <View style={styles.submitRow}>
-                                {!!submitError && <Text style={styles.submitError}>{submitError}</Text>}
-                                {!!submitSuccess && !submitError && <Text style={styles.submitSuccess}>{submitSuccess}</Text>}
                                 <Pressable
                                     style={[
                                         styles.submitButton,
@@ -1138,7 +1327,9 @@ export default function CreateScreen() {
                                     {submitting ? (
                                         <ActivityIndicator color="#fff" />
                                     ) : (
-                                        <Text style={styles.submitButtonText}>Submit Completion</Text>
+                                        <Text style={styles.submitButtonText}>
+                                            {isEditing ? 'Update Submission' : 'Submit Completion'}
+                                        </Text>
                                     )}
                                 </Pressable>
                             </View>
@@ -1383,26 +1574,6 @@ const styles = StyleSheet.create({
         gap: 6,
         position: 'relative',
     },
-    addPlatformBtn: {
-        alignSelf: 'flex-start',
-        backgroundColor: "#1f4b99",
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 10,
-    },
-    addPlatformBtnText: {
-        color: "#fff",
-        fontWeight: '700',
-    },
-    addPlatformBtnSecondary: {
-        backgroundColor: "#e2e2e2",
-        borderWidth: 1,
-        borderColor: "#c6c6c6",
-    },
-    addPlatformBtnTextSecondary: {
-        color: "#333",
-        fontWeight: '700',
-    },
     platformSuggestionBox: {
         width: "100%",
         marginTop: 4,
@@ -1455,6 +1626,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         color: "#666",
     },
+    platformSuggestionScroll: {
+        maxHeight: 160,
+    },
     platformSearchInput: {
         padding: 10,
         borderBottomWidth: 1,
@@ -1462,14 +1636,19 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: "#222",
     },
-    manualAddRow: {
-        gap: 6,
-        marginTop: 6,
-        width: "100%",
-    },
-    manualAddActions: {
+    platformAddRow: {
+        paddingVertical: 10,
+        paddingHorizontal: 10,
         flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
+        borderTopWidth: 1,
+        borderTopColor: "#eee",
+    },
+    platformAddText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: "#1f4b99",
     },
     rowTopRight: {
         flexDirection: 'row',
@@ -1662,13 +1841,5 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontWeight: '800',
         fontSize: 18,
-    },
-    submitError: {
-        color: "#B00020",
-        fontWeight: '700',
-    },
-    submitSuccess: {
-        color: "#0a7d1a",
-        fontWeight: '700',
     },
 });

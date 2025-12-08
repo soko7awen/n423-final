@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Image, Animated } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image, Animated, Alert, Platform } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -22,6 +22,19 @@ export default function WebTopNav() {
 
   const username = user?.displayName || user?.email?.split("@")[0] || "User";
   const photo = profilePhoto || user?.photoURL || null;
+  const showSweetAlert = async (titleMsg, message, type = "info") => {
+    if (Platform.OS === "web") {
+      try {
+        // eslint-disable-next-line global-require
+        const swal = require("sweetalert");
+        await swal(titleMsg, message, type);
+        return;
+      } catch (err) {
+        console.warn("SweetAlert auth notice failed, falling back to native alert", err);
+      }
+    }
+    Alert.alert(titleMsg, message);
+  };
 
   useEffect(() => { if (!user) setOpen(false); }, [user]);
 
@@ -104,8 +117,14 @@ export default function WebTopNav() {
 
   const handleLogout = async () => {
     setOpen(false);
-    await signOut();
-    router.replace("/login");
+    try {
+      await signOut();
+      await showSweetAlert("Logged out", "See you next time!", "success");
+      router.replace("/login");
+    } catch (err) {
+      console.warn("Logout failed", err);
+      await showSweetAlert("Error", "Could not log out. Please try again.", "error");
+    }
   };
 
   const rotation = rotateAnim.interpolate({
@@ -142,7 +161,7 @@ export default function WebTopNav() {
               <Ionicons name="search" style={style.navLinkIcon} />
             </Pressable>
           </Link>
-          <Link href="/create" style={{ fontSize: 20 }}>
+          <Link href="/submit" style={{ fontSize: 20 }}>
             <Pressable
               style={({ hovered, pressed }) => [
                 style.addBtn,
@@ -170,9 +189,11 @@ export default function WebTopNav() {
             </Pressable>
             <Text style={style.profileLabel}>{user ? username : "Log In"}</Text>
             {user && (
-              <Animated.View style={{ transform: [{ rotate: rotation }] }}>
-                <Ionicons style={style.chevron} name="chevron-down-outline" />
-              </Animated.View>
+              <View style={style.chevronWrap}>
+                <Animated.View style={[style.chevronAnim, { transform: [{ rotate: rotation }] }]}>
+                  <Ionicons style={style.chevron} name="chevron-down-outline" />
+                </Animated.View>
+              </View>
             )}
           </Pressable>
           {open && user && (
@@ -297,9 +318,21 @@ const style = StyleSheet.create({
     marginLeft: 8,
   },
   chevron: {
-    marginTop: -2,
-    marginLeft: 10,
     fontSize: 28,
+  },
+  chevronWrap: {
+    width: 32,
+    height: 32,
+    marginLeft: 10,
+    marginTop: -2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chevronAnim: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileHover: {
     backgroundColor: "#f2f6ff",

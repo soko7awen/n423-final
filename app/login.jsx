@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { auth, db } from '../src/firebase/firebaseConfig';
 import { useAuth } from '../src/auth/AuthContext';
 import { useTheme } from '../styles/theme';
@@ -20,6 +20,19 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const showSweetAlert = async (titleMsg, message, type = 'info') => {
+        if (Platform.OS === 'web') {
+            try {
+                // eslint-disable-next-line global-require
+                const swal = require('sweetalert');
+                await swal(titleMsg, message, type);
+                return;
+            } catch (err) {
+                console.warn('SweetAlert login notice failed, falling back to native alert', err);
+            }
+        }
+        Alert.alert(titleMsg, message);
+    };
 
     useEffect(() => {
         if (user) {
@@ -46,23 +59,31 @@ export default function LoginScreen() {
             let emailToUse = identifier;
 
             if (!identifier.includes('@')) {
-                const usernameKey = identifier.toLowerCase();
-                const docRef = doc(db, 'usernames', usernameKey);
-                const snap = await getDoc(docRef);
-                if (!snap.exists()) {
+                // Look up the email from profiles where the username matches the input.
+                const profileQuery = query(
+                    collection(db, 'profiles'),
+                    where('username', '==', identifier),
+                    limit(1)
+                );
+                const snap = await getDocs(profileQuery);
+                if (snap.empty) {
                     throw new Error('Username not found. Please check your username or try your email instead.');
                 }
-                const data = snap.data();
+                const data = snap.docs[0].data();
                 if (!data?.email) {
                     throw new Error('Username lookup missing email. Try logging in with your email.');
                 }
                 emailToUse = data.email;
             }
 
-            await signInWithEmailAndPassword(auth, emailToUse, password);
+            const credential = await signInWithEmailAndPassword(auth, emailToUse, password);
+            const displayName = credential?.user?.displayName
+                || credential?.user?.email?.split('@')[0]
+                || 'Player';
+            await showSweetAlert('Logged in', `Welcome back, ${displayName}!`, 'success');
         } catch (e) {
             if (e?.code === 'permission-denied') {
-                setError('Username lookup is blocked by Firestore rules. Please log in with your email or allow public read on usernames.');
+                setError('Username lookup is blocked by Firestore rules. Please log in with your email or allow read access on profiles.');
             } else {
                 setError(e.message);
             }

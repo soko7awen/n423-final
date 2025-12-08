@@ -36,9 +36,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="create"
+        name="submit"
         options={{
-          title: "Create",
+          title: "Submit",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="create" color={color} size={size} />
           ),

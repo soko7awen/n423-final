@@ -11,17 +11,19 @@ import {
     Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, deleteDoc } from 'firebase/firestore';
 
 import { useTheme } from '../styles/theme';
 import Footer from "../components/Footer";
 import GameCard from "../components/GameCard";
 import { useDevice } from "../app/device-context";
 import { db } from '../src/firebase/firebaseConfig';
+import { useAuth } from '../src/auth/AuthContext';
 
 export default function SearchScreen() {
     const { isDesktopWeb } = useDevice();
     const theme = useTheme();
+    const { user } = useAuth();
     const params = useLocalSearchParams();
     const getParam = (key) => {
         const value = params[key];
@@ -40,6 +42,7 @@ export default function SearchScreen() {
     const [submissions, setSubmissions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [deleteError, setDeleteError] = useState('');
 
     useEffect(() => {
         const q = getParam('query');
@@ -100,6 +103,21 @@ export default function SearchScreen() {
         loadSubmissions();
         return () => { cancelled = true; };
     }, []);
+
+    const handleDeleteSubmission = async (id, ownerId) => {
+        if (!user || user.uid !== ownerId) {
+            setDeleteError('You can only delete your own submissions.');
+            return;
+        }
+        try {
+            await deleteDoc(doc(db, 'submissions', id));
+            setSubmissions((prev) => prev.filter((s) => s.id !== id));
+            setDeleteError('');
+        } catch (err) {
+            console.warn('Failed to delete submission', err);
+            setDeleteError('Could not delete this submission.');
+        }
+    };
 
     const results = useMemo(() => {
         const text = queryText.trim().toLowerCase();
@@ -244,6 +262,9 @@ export default function SearchScreen() {
                             {!!error && !loading && (
                                 <Text style={styles.errorText}>{error}</Text>
                             )}
+                            {!!deleteError && !loading && (
+                                <Text style={styles.errorText}>{deleteError}</Text>
+                            )}
                             {!loading && !error && (
                                 <>
                                     <Text style={styles.countText}>
@@ -256,7 +277,10 @@ export default function SearchScreen() {
                                         {results.map((s) => (
                                             <GameCard
                                                 key={s.id}
+                                                submissionId={s.id}
                                                 gameId={s.gameId}
+                                                ownerId={s.userId}
+                                                onDelete={() => handleDeleteSubmission(s.id, s.userId)}
                                                 title={s.title}
                                                 year={s.year}
                                                 platform={s.platform}

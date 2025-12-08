@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Pressable, Animated, Easing, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Pressable, Animated, Easing, ScrollView, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useDevice } from "../app/device-context";
-
-const fallbackImage = 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=80';
+import { useAuth } from '../src/auth/AuthContext';
 
 export default function GameCard({
+    submissionId,
     gameId,
-    igdbId,
     title,
     year,
     platform,
@@ -19,9 +19,12 @@ export default function GameCard({
     userName,
     userPhoto,
     manual,
+    onDelete,
+    ownerId,
 }) {
     const router = useRouter();
     const { isDesktopWeb } = useDevice();
+    const { user } = useAuth();
 
     const infoTextNumberOfLines = 3;
     const infoTextLineHeight = isDesktopWeb ? 18 : 16;
@@ -69,6 +72,60 @@ export default function GameCard({
     useEffect(() => {
         if (isDesktopWeb) setNotesOpen(false);
     }, [isDesktopWeb]);
+
+    const getWebSweetAlert = () => {
+        if (Platform.OS !== 'web') return null;
+        try {
+            // eslint-disable-next-line global-require
+            return require('sweetalert');
+        } catch (err) {
+            console.warn('SweetAlert unavailable', err);
+            return null;
+        }
+    };
+
+    const confirmDelete = () => {
+        const swalAlert = getWebSweetAlert();
+        if (swalAlert) {
+            return swalAlert({
+                title: 'Delete submission',
+                text: 'Are you sure you want to delete this submission?',
+                icon: 'warning',
+                buttons: ['Cancel', 'Delete'],
+                dangerMode: true,
+            }).catch((err) => {
+                console.warn('SweetAlert delete confirm failed, falling back to native alert', err);
+                return false;
+            });
+        }
+
+        return new Promise((resolve) => {
+            Alert.alert('Delete submission', 'Are you sure you want to delete this submission?', [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+            ]);
+        });
+    };
+
+    const showDeleteResult = async (success) => {
+        const swalAlert = getWebSweetAlert();
+        if (swalAlert) {
+            try {
+                await swalAlert(
+                    success ? 'Deleted' : 'Error',
+                    success ? 'Submission removed.' : 'Could not delete this submission.',
+                    success ? 'success' : 'error'
+                );
+                return;
+            } catch (err) {
+                console.warn('SweetAlert delete result failed, falling back to native alert', err);
+            }
+        }
+        Alert.alert(
+            success ? 'Deleted' : 'Error',
+            success ? 'Submission removed.' : 'Could not delete this submission.'
+        );
+    };
 
     const styles = StyleSheet.create({
         cardSlot: {
@@ -119,9 +176,22 @@ export default function GameCard({
             borderRadius: 12,
             overflow: 'hidden',
         },
+        imagePlaceholder: {
+            backgroundColor: '#EDEDED',
+            borderColor: '#D0D0D0',
+            borderWidth: 1,
+        },
         image: {
             width: '100%',
             height: '100%',
+        },
+        imagePlaceholderInner: {
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        imagePlaceholderIcon: {
+            opacity: 0.6,
         },
         info: {
             marginTop: 6,
@@ -252,11 +322,49 @@ export default function GameCard({
             transform: [{ translateY: 0 }],
             boxShadow: '0px 1px 3px rgba(0,0,0,0.08)',
         },
+        actionRow: {
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            paddingHorizontal: 10,
+            marginBottom: 4,
+            minHeight: 32,
+            gap: 8,
+        },
+        actionBtn: {
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 10,
+            backgroundColor: '#f2f6ff',
+            borderWidth: 1,
+            borderColor: '#ced8ff',
+        },
+        actionBtnHover: {
+            backgroundColor: '#e5edff',
+            transform: [{ translateY: -1 }],
+        },
+        actionBtnActive: {
+            backgroundColor: '#d7e4ff',
+            transform: [{ translateY: 0 }],
+        },
+        actionText: {
+            fontSize: 12,
+            fontWeight: '800',
+            color: '#1f2c4f',
+        },
+        actionDanger: {
+            backgroundColor: '#fff3f3',
+            borderColor: '#f5c2c7',
+        },
+        actionDangerText: {
+            color: '#b00020',
+        },
     });
 
     const displayName = userName || 'Player';
     const displayPhoto = userPhoto ? { uri: userPhoto } : null;
     const completionDisplay = completionValue ? `${completionValue}` : '—';
+    const hasImage = Boolean(imageUrl);
     const pushSearch = ({ query, user, gameId: gameIdParam }) => {
         const params = new URLSearchParams();
         if (query) params.set('query', query);
@@ -272,6 +380,27 @@ export default function GameCard({
         const userQuery = displayName?.trim();
         if (userQuery) pushSearch({ user: userQuery });
     };
+    const handleEdit = () => {
+        if (!submissionId) return;
+        router.push(`/submit?edit=${submissionId}`);
+    };
+    const handleDelete = async () => {
+        if (!submissionId || typeof onDelete !== 'function') return;
+
+        const confirmed = await confirmDelete();
+        if (!confirmed) return;
+
+        try {
+            await onDelete(submissionId);
+            await showDeleteResult(true);
+        } catch (err) {
+            console.warn('Failed to delete submission', err);
+            await showDeleteResult(false);
+        }
+    };
+
+    const canManage = Boolean(user?.uid && submissionId && ownerId && user.uid === ownerId);
+    const actionAreaWidth = 120;
 
     return (
         <View style={styles.cardSlot}>
@@ -284,6 +413,37 @@ export default function GameCard({
                 onHoverOut={handleCardHoverOut}
                 onPress={handleCardPress}
             >
+                <View style={styles.actionRow}>
+                    {canManage ? (
+                        <>
+                            <Pressable
+                                accessibilityLabel="Edit submission"
+                                onPress={(e) => { e?.stopPropagation?.(); handleEdit(); }}
+                                style={({ hovered, pressed }) => [
+                                    styles.actionBtn,
+                                    hovered && styles.actionBtnHover,
+                                    pressed && styles.actionBtnActive,
+                                ]}
+                            >
+                                <Text style={styles.actionText}>Edit</Text>
+                            </Pressable>
+                            <Pressable
+                                accessibilityLabel="Delete submission"
+                                onPress={(e) => { e?.stopPropagation?.(); handleDelete(); }}
+                                style={({ hovered, pressed }) => [
+                                    styles.actionBtn,
+                                    styles.actionDanger,
+                                    hovered && styles.actionBtnHover,
+                                    pressed && styles.actionBtnActive,
+                                ]}
+                            >
+                                <Text style={[styles.actionText, styles.actionDangerText]}>Delete</Text>
+                            </Pressable>
+                        </>
+                    ) : (
+                        <View style={{ width: actionAreaWidth, height: 32 }} />
+                    )}
+                </View>
                 <Pressable
                     style={styles.titleWrap}
                     onPress={handleOpenGameSearch}
@@ -317,12 +477,29 @@ export default function GameCard({
                         onHoverIn={handleCardHoverIn}
                     >
                         {({ hovered }) => (
-                            <View style={[styles.imageWrap, hovered && styles.imageHover]}>
-                                <Image
-                                    source={imageUrl ? { uri: imageUrl } : { uri: fallbackImage }}
-                                    style={styles.image}
-                                    resizeMode="cover"
-                                />
+                            <View
+                                style={[
+                                    styles.imageWrap,
+                                    hovered && styles.imageHover,
+                                    !hasImage && styles.imagePlaceholder,
+                                ]}
+                            >
+                                {hasImage ? (
+                                    <Image
+                                        source={{ uri: imageUrl }}
+                                        style={styles.image}
+                                        resizeMode="cover"
+                                    />
+                                ) : (
+                                    <View style={styles.imagePlaceholderInner}>
+                                        <Ionicons
+                                            name="image-outline"
+                                            size={42}
+                                            color="#666"
+                                            style={styles.imagePlaceholderIcon}
+                                        />
+                                    </View>
+                                )}
                             </View>
                         )}
                     </Pressable>
