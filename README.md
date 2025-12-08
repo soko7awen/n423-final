@@ -3,7 +3,7 @@
 Game completion tracker built from my approved proposal: a colorful, responsive leaderboard where players log their finished games, high scores, and personal notes. The app mirrors the prototype’s layout, typography, and color gradients while adding full Firebase‑backed CRUD, IGDB search, and profile management.
 
 ## Live Deployments
-- Vercel: `https://n423-final.vercel.app/`
+- [Vercel](https://n423-final.vercel.app/)
 
 ## What It Does
 - Lets authenticated users log a completion with title, platform(s), year, developer, completion type (progress or high‑score), and player notes.
