@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Pressable, Image, ActivityIndicator, Modal, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -162,6 +162,40 @@ export default function CreateScreen() {
         return missing;
     }, [completionValue, developer, platform, playerNotes, title, user, year]);
     const isSubmitDisabled = submitting || loadingEdit || missingFields.length > 0;
+
+    const resetFormState = useCallback(() => {
+        setTitle('');
+        setTgdbId('');
+        setYear('');
+        setDeveloper('');
+        setPlatform('');
+        setSelectedPlatforms([]);
+        setSelectedReleases([]);
+        setPlatformOptions([]);
+        setManualEntry(false);
+        setCompletionType('high-score');
+        setCompletionValue('');
+        setPlayerNotes('');
+        setImageData(null);
+        setSearchResults([]);
+        setLocalResults([]);
+        setRemoteResults([]);
+        setSearchLoading(false);
+        setSearchError('');
+        setTitleLocked(false);
+        setMetadataLocked(false);
+        setLoreGameId('');
+        setSubmitError('');
+        setSubmitSuccess('');
+        setShowPlatformDropdown(false);
+        setShowManualPlatformDropdown(false);
+        setNewPlatformText('');
+        setPlatformSearchResults([]);
+        setPlatformSearchError('');
+        setPlatformSearchLoading(false);
+        setEditingOwnerId('');
+        skipNextSearch.current = false;
+    }, []);
     const showSweetAlert = async (titleMsg, message, type = 'info') => {
         if (Platform.OS === 'web') {
             try {
@@ -239,6 +273,12 @@ export default function CreateScreen() {
         const normalized = Array.isArray(raw) ? raw[0] : raw;
         setEditingSubmissionId(normalized ? String(normalized) : '');
     }, [params]);
+
+    useFocusEffect(useCallback(() => {
+        if (!isEditing) {
+            resetFormState();
+        }
+    }, [isEditing, resetFormState]));
 
     useEffect(() => {
         if (!editingSubmissionId) {
@@ -823,66 +863,77 @@ export default function CreateScreen() {
         }
     }, [shouldShowSuggestions]);
 
-    return (
-        <View style={{ flex: 1 }} pointerEvents="box-none">
-            <Modal
-                transparent
-                visible={shouldShowSuggestions && hasMeasuredTitle}
-                animationType="none"
-                onRequestClose={() => {}}
-                statusBarTranslucent
+    const suggestionsView = shouldShowSuggestions && (
+        <View
+            pointerEvents="box-none"
+            style={[
+                styles.suggestionsOverlay,
+                Platform.OS === 'web' && styles.suggestionsOverlayWeb,
+            ]}
+        >
+            <View
+                pointerEvents="box-none"
+                style={[
+                    styles.searchResultsBox,
+                    styles.searchResultsBoxPortal,
+                    {
+                        top: titleFieldLayout.y + titleFieldLayout.height,
+                        left: titleFieldLayout.x,
+                        width: titleFieldLayout.width,
+                    },
+                ]}
             >
-                <View pointerEvents="box-none" style={styles.suggestionsOverlay}>
-                    {shouldShowSuggestions && (
-                        <View
-                            pointerEvents="box-none"
-                            style={[
-                                styles.searchResultsBox,
-                                styles.searchResultsBoxPortal,
-                                {
-                                    top: titleFieldLayout.y + titleFieldLayout.height,
-                                    left: titleFieldLayout.x,
-                                    width: titleFieldLayout.width,
-                                },
-                            ]}
-                        >
-                            {searchLoading && (
-                                <View style={styles.searchStatusRow}>
-                                    <ActivityIndicator size="small" color="#333" />
-                                    <Text style={styles.searchStatusText}>Searching TheGamesDB…</Text>
-                                </View>
-                            )}
-                            {!!searchError && (
-                                <Text style={styles.searchErrorText}>{searchError}</Text>
-                            )}
-                            {!searchLoading && !searchError && searchResults.map((game) => (
-                            <Pressable
-                                key={`${game.id}-${game.title}`}
-                                style={styles.searchResult}
-                                onPress={() => handleSelectGame(game)}
-                            >
-                                {game.source === 'lore' && (
-                                    <View style={styles.loreBadge}>
-                                        <Text style={styles.loreBadgeText}>
-                                            LOREBoards{game.manual ? ' • Manual' : ''}
-                                        </Text>
-                                    </View>
-                                )}
-                                <View style={styles.searchResultTitleRow}>
-                                    <Text style={styles.searchResultTitle}>{game.title}</Text>
-                                </View>
-                                <Text style={styles.searchResultMetaText}>
-                                    {[game.platform, game.year].filter(Boolean).join(' • ') || 'No extra details'}
-                                </Text>
-                            </Pressable>
-                        ))}
-                            {!searchLoading && !searchError && searchResults.length === 0 && (
-                                <Text style={styles.searchResultEmpty}>No matches yet.</Text>
-                            )}
+                {searchLoading && (
+                    <View style={styles.searchStatusRow}>
+                        <ActivityIndicator size="small" color="#333" />
+                        <Text style={styles.searchStatusText}>Searching TheGamesDB…</Text>
+                    </View>
+                )}
+                {!!searchError && (
+                    <Text style={styles.searchErrorText}>{searchError}</Text>
+                )}
+                {!searchLoading && !searchError && searchResults.map((game) => (
+                <Pressable
+                    key={`${game.id}-${game.title}`}
+                    style={styles.searchResult}
+                    onPress={() => handleSelectGame(game)}
+                >
+                    {game.source === 'lore' && (
+                        <View style={styles.loreBadge}>
+                            <Text style={styles.loreBadgeText}>
+                                LOREBoards{game.manual ? ' • Manual' : ''}
+                            </Text>
                         </View>
                     )}
-                </View>
-            </Modal>
+                    <View style={styles.searchResultTitleRow}>
+                        <Text style={styles.searchResultTitle}>{game.title}</Text>
+                    </View>
+                    <Text style={styles.searchResultMetaText}>
+                        {[game.platform, game.year].filter(Boolean).join(' • ') || 'No extra details'}
+                    </Text>
+                </Pressable>
+            ))}
+                {!searchLoading && !searchError && searchResults.length === 0 && (
+                    <Text style={styles.searchResultEmpty}>No matches yet.</Text>
+                )}
+            </View>
+        </View>
+    );
+
+    return (
+        <View style={{ flex: 1 }} pointerEvents="box-none">
+            {Platform.OS === 'web' && hasMeasuredTitle ? suggestionsView : null}
+            {Platform.OS !== 'web' && hasMeasuredTitle && shouldShowSuggestions && (
+                <Modal
+                    transparent
+                    visible
+                    animationType="none"
+                    onRequestClose={() => {}}
+                    statusBarTranslucent
+                >
+                    {suggestionsView}
+                </Modal>
+            )}
 
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                 <ScrollView contentContainerStyle={theme.scrollContainer} keyboardShouldPersistTaps="handled">
@@ -1384,6 +1435,13 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         zIndex: 3000,
         pointerEvents: 'box-none',
+    },
+    suggestionsOverlayWeb: {
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'transparent',
+        zIndex: 5000,
+        pointerEvents: 'none',
     },
     columnMobile: {
         minWidth: "100%",

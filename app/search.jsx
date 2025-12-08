@@ -10,7 +10,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, deleteDoc } from 'firebase/firestore';
 
 import { useTheme } from '../styles/theme';
@@ -23,6 +23,7 @@ import { useAuth } from '../src/auth/AuthContext';
 export default function SearchScreen() {
     const { isDesktopWeb } = useDevice();
     const theme = useTheme();
+    const router = useRouter();
     const { user } = useAuth();
     const params = useLocalSearchParams();
     const getParam = (key) => {
@@ -171,6 +172,11 @@ export default function SearchScreen() {
         { key: 'platformAZ', label: 'Platform A-Z' },
     ];
 
+    const clearGameIdFilter = () => {
+        setGameIdParam('');
+        router.replace('/search');
+    };
+
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
@@ -212,6 +218,23 @@ export default function SearchScreen() {
 
                         {showParameters && (
                             <View style={styles.parametersBox}>
+                                {!!gameIdParam && (
+                                    <View style={styles.filterRow}>
+                                        <Text style={styles.parametersLabel}>Active game filter</Text>
+                                        <Pressable
+                                            onPress={clearGameIdFilter}
+                                            style={({ hovered, pressed }) => [
+                                                styles.filterPill,
+                                                (hovered || pressed) && styles.filterPillHover,
+                                            ]}
+                                        >
+                                            <Text style={styles.filterPillText}>
+                                                gameId: {gameIdParam}
+                                            </Text>
+                                            <Text style={styles.filterPillClear}>×</Text>
+                                        </Pressable>
+                                    </View>
+                                )}
                                 <Text style={styles.parametersLabel}>Filter by user</Text>
                                 <TextInput
                                     value={userQuery}
@@ -371,6 +394,33 @@ const styles = StyleSheet.create({
     parametersLabel: {
         fontWeight: "700",
         fontSize: 16,
+    },
+    filterRow: {
+        gap: 8,
+        marginBottom: 8,
+    },
+    filterPill: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: '#E8F0FE',
+        borderColor: '#C5D6FF',
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    filterPillHover: {
+        backgroundColor: '#dbe7ff',
+    },
+    filterPillText: {
+        fontWeight: '700',
+        color: '#1a3c84',
+    },
+    filterPillClear: {
+        fontWeight: '800',
+        color: '#1a3c84',
     },
     input: {
         width: "100%",
