@@ -137,6 +137,12 @@ export default function GameCard({
             flexDirection: 'row',
             alignItems: 'center',
             gap: 6,
+            paddingHorizontal: 8,
+            paddingVertical: 6,
+            borderRadius: 999,
+            transitionProperty: 'background-color, transform, box-shadow',
+            transitionDuration: '140ms',
+            transitionTimingFunction: 'ease-out',
         },
         userPic: {
             width: isDesktopWeb ? 26 : 22,
@@ -224,7 +230,15 @@ export default function GameCard({
             opacity: 0.95,
         },
         userProfileHover: {
-            opacity: 0.85,
+            backgroundColor: '#e7f0ff',
+            transform: [{ translateY: -1 }],
+            boxShadow: '0px 2px 6px rgba(0,0,0,0.08)',
+            opacity: 0.9,
+        },
+        userProfileActive: {
+            backgroundColor: '#dce8ff',
+            transform: [{ translateY: 0 }],
+            boxShadow: '0px 1px 3px rgba(0,0,0,0.08)',
         },
     });
 
@@ -295,9 +309,10 @@ export default function GameCard({
                                     event.stopPropagation();
                                     router.push("/search?profile");
                                 }}
-                                style={({ hovered }) => [
+                                style={({ hovered, pressed }) => [
                                     styles.userProfile,
-                                    hovered && styles.userProfileHover,
+                                    (hovered || pressed) && styles.userProfileHover,
+                                    pressed && styles.userProfileActive,
                                 ]}
                             >
                                 {displayPhoto

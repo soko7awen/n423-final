@@ -18,6 +18,7 @@ export default function WebTopNav() {
   const [open, setOpen] = useState(false);
   const rotateAnim = useMemo(() => new Animated.Value(0), []);
   const [profilePhoto, setProfilePhoto] = useState(null);
+  const [profileHovering, setProfileHovering] = useState(false);
 
   const username = user?.displayName || user?.email?.split("@")[0] || "User";
   const photo = profilePhoto || user?.photoURL || null;
@@ -141,14 +142,16 @@ export default function WebTopNav() {
             </Pressable>
           </Link>
           <Pressable
+            onHoverIn={() => setProfileHovering(true)}
+            onHoverOut={() => setProfileHovering(false)}
             style={({ hovered, pressed }) => [
               style.profile,
-              hovered && style.profileHover,
+              (hovered || profileHovering) && style.profileHover,
               pressed && style.profileActive,
             ]}
             onPress={handleNavPress}
           >
-            <Pressable onPress={handleAvatarPress}>
+            <Pressable onPress={handleAvatarPress} onHoverIn={() => setProfileHovering(true)}>
               {photo
                 ? <Image source={{ uri: photo }} style={style.avatar} />
                 : <Ionicons style={style.avatarIcon} name="person-circle-outline" size={44} />}
