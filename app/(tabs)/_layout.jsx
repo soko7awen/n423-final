@@ -8,6 +8,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      initialRouteName="index"
       screenOptions={{
         tabBarStyle: { display: isDesktopWeb ? "none" : "flex" },
         headerShown: !isDesktopWeb,

@@ -130,9 +130,24 @@ export default function WebTopNav() {
           ]}
         >
           <Link href="/create" style={{ fontSize: 20 }}>
-            <Text name="add" style={style.addBtn}>+</Text>
+            <Pressable
+              style={({ hovered, pressed }) => [
+                style.addBtn,
+                hovered && style.addBtnHover,
+                pressed && style.addBtnActive,
+              ]}
+            >
+              <Text name="add" style={style.addBtnText}>+</Text>
+            </Pressable>
           </Link>
-          <Pressable style={style.profile} onPress={handleNavPress}>
+          <Pressable
+            style={({ hovered, pressed }) => [
+              style.profile,
+              hovered && style.profileHover,
+              pressed && style.profileActive,
+            ]}
+            onPress={handleNavPress}
+          >
             <Pressable onPress={handleAvatarPress}>
               {photo
                 ? <Image source={{ uri: photo }} style={style.avatar} />
@@ -147,10 +162,24 @@ export default function WebTopNav() {
           </Pressable>
           {open && user && (
             <View style={style.dropdown}>
-              <Pressable style={style.dropdownItem} onPress={() => { setOpen(false); router.push("/search"); }}>
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  style.dropdownItem,
+                  hovered && style.dropdownItemHover,
+                  pressed && style.dropdownItemActive,
+                ]}
+                onPress={() => { setOpen(false); router.push("/search"); }}
+              >
                 <Text style={style.dropdownText}>My Completions</Text>
               </Pressable>
-              <Pressable style={style.dropdownItem} onPress={handleLogout}>
+              <Pressable
+                style={({ hovered, pressed }) => [
+                  style.dropdownItem,
+                  hovered && style.dropdownItemHover,
+                  pressed && style.dropdownItemActive,
+                ]}
+                onPress={handleLogout}
+              >
                 <Text style={style.dropdownText}>Log Out</Text>
               </Pressable>
             </View>
@@ -194,14 +223,37 @@ const style = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
+    transitionProperty: "transform, background-color, border-color",
+    transitionDuration: "140ms",
+    transitionTimingFunction: "ease-out",
+  },
+  addBtnText: {
     fontSize: 36,
+    color: "#000",
+    lineHeight: 36,
+  },
+  addBtnHover: {
+    backgroundColor: "#e7f0ff",
+    borderColor: "#4b7bec",
+    transform: [{ translateY: -1 }],
+  },
+  addBtnActive: {
+    backgroundColor: "#cddbff",
+    borderColor: "#2d5ad7",
+    transform: [{ translateY: 0 }],
   },
   profile: {
     display: "flex",
-    paddingTop: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     fontSize: 20,
     alignItems: "center",
     flexDirection: "row",
+    borderRadius: 12,
+    transitionProperty: "background-color, transform",
+    transitionDuration: "140ms",
+    transitionTimingFunction: "ease-out",
   },
   profileLabel: {
     fontSize: 20,
@@ -211,6 +263,14 @@ const style = StyleSheet.create({
     marginTop: -2,
     marginLeft: 10,
     fontSize: 28,
+  },
+  profileHover: {
+    backgroundColor: "#f2f6ff",
+    transform: [{ translateY: -1 }],
+  },
+  profileActive: {
+    backgroundColor: "#e0e9ff",
+    transform: [{ translateY: 0 }],
   },
   avatar: {
     height: 44,
@@ -239,6 +299,12 @@ const style = StyleSheet.create({
   dropdownItem: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  dropdownItemHover: {
+    backgroundColor: "#f2f6ff",
+  },
+  dropdownItemActive: {
+    backgroundColor: "#e0e9ff",
   },
   dropdownText: {
     fontSize: 16,

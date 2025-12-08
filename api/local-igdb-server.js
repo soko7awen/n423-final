@@ -78,7 +78,7 @@ const getIgdbToken = async () => {
   return cachedToken;
 };
 
-const normalizeGame = (game) => {
+const normalizeGame = (game, platformVersionMap = new Map()) => {
   const toYear = (timestamp) => {
     if (!timestamp) return '';
     const date = new Date(timestamp * 1000);
@@ -99,11 +99,12 @@ const normalizeGame = (game) => {
     ? [...game.release_dates].filter((r) => r?.platform && r?.date)
     : [];
 
-  const earliestRelease = releaseDates.sort((a, b) => {
+  const sortedReleases = releaseDates.sort((a, b) => {
     const aDate = a.date || Number.MAX_SAFE_INTEGER;
     const bDate = b.date || Number.MAX_SAFE_INTEGER;
     return aDate - bDate;
-  })[0];
+  });
+  const earliestRelease = sortedReleases[0];
 
   const platformLookup = {};
   if (Array.isArray(game.platforms)) {
@@ -119,10 +120,29 @@ const normalizeGame = (game) => {
     (Array.isArray(game.platforms) && game.platforms[0]?.name) ||
     '';
 
+  const platformList = sortedReleases
+    .map((r) => {
+      const version = platformVersionMap.get(r.platform);
+      const releaseDate = Array.isArray(version?.release_dates) && version.release_dates[0]?.date
+        ? version.release_dates[0].date
+        : r.date || null;
+      const name = version?.platform?.name || platformLookup[r.platform] || '';
+      return { name, date: releaseDate };
+    })
+    .filter((r) => r.name);
+  platformList.sort((a, b) => (a.date || Number.MAX_SAFE_INTEGER) - (b.date || Number.MAX_SAFE_INTEGER));
+  const platformNamesChrono = platformList.map((p) => p.name);
+
   const coverUrl = buildImageUrl(game.cover?.image_id, 't_cover_big');
   const screenshotUrl = Array.isArray(game.screenshots) && game.screenshots[0]?.image_id
     ? buildImageUrl(game.screenshots[0].image_id, 't_screenshot_huge')
     : '';
+
+  const popularityScore = Number.isFinite(game.total_rating_count)
+    ? game.total_rating_count
+    : Number.isFinite(game.hypes)
+      ? game.hypes
+      : 0;
 
   return {
     id: game.id,
@@ -131,6 +151,9 @@ const normalizeGame = (game) => {
     platform: platformName,
     developer: developerEntry?.company?.name || '',
     imageUrl: coverUrl || screenshotUrl || '',
+    popularity: popularityScore,
+    platforms: platformNamesChrono,
+    releases: platformList,
   };
 };
 
@@ -168,9 +191,11 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const token = await getIgdbToken();
+      const safeTerm = search.replace(/"/g, '\\"');
       const body = `
-fields id,name,first_release_date,platforms.id,platforms.name,release_dates.date,release_dates.platform,cover.image_id,screenshots.image_id,involved_companies.developer,involved_companies.company.name;
-search "${search.replace(/"/g, '\\"')}";
+fields id,name,first_release_date,total_rating,total_rating_count,hypes,platforms.id,platforms.name,release_dates.date,release_dates.platform,cover.image_id,screenshots.image_id,involved_companies.developer,involved_companies.company.name;
+where name ~ *"${safeTerm}"*;
+sort total_rating_count desc;
 limit ${Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 12) : 6};
 `;
 
@@ -184,7 +209,51 @@ limit ${Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 12) : 6};
         body,
       });
 
-      const normalized = Array.isArray(games) ? games.map(normalizeGame) : [];
+      // Fetch platform_versions for involved platform ids to preserve release ordering
+      const platformIds = new Set();
+      (Array.isArray(games) ? games : []).forEach((g) => {
+        if (Array.isArray(g.release_dates)) {
+          g.release_dates.forEach((r) => {
+            if (r?.platform) platformIds.add(r.platform);
+          });
+        }
+      });
+
+      const platformVersionMap = new Map();
+      if (platformIds.size) {
+        const pvBody = `
+fields platform,name,release_dates.date;
+where platform = (${Array.from(platformIds).join(',')});
+limit 200;
+`;
+        try {
+          const versions = await fetchJson('https://api.igdb.com/v4/platform_versions', {
+            method: 'POST',
+            headers: {
+              'Client-ID': process.env.IGDB_CLIENT_ID,
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'text/plain',
+            },
+            body: pvBody,
+          });
+          versions.forEach((v) => {
+            if (v?.platform) {
+              // Sort release dates for consistency
+              if (Array.isArray(v.release_dates)) {
+                v.release_dates = [...v.release_dates].sort(
+                  (a, b) => (a?.date || Number.MAX_SAFE_INTEGER) - (b?.date || Number.MAX_SAFE_INTEGER)
+                );
+              }
+              platformVersionMap.set(v.platform, v);
+            }
+          });
+        } catch (err) {
+          console.warn('[igdb] failed to load platform_versions', err);
+        }
+      }
+
+      const normalized = Array.isArray(games) ? games.map((g) => normalizeGame(g, platformVersionMap)) : [];
+      normalized.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
       return respondJson(res, 200, { games: normalized });
     } catch (err) {
       console.error('[igdb]', err.status || '', err.message, err.body || '');
@@ -202,12 +271,76 @@ limit ${Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 12) : 6};
     }
   }
 
+  if (parsed.pathname === '/api/igdb/platforms') {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      });
+      return res.end();
+    }
+
+    if (req.method !== 'GET') {
+      return respondJson(res, 405, { error: 'Method not allowed' });
+    }
+
+    const search = (parsed.query.search || '').trim();
+    const limit = parseInt(parsed.query.limit || '8', 10);
+
+    if (!search || search.length < 2) {
+      return respondJson(res, 400, { error: 'Search term too short' });
+    }
+
+    try {
+      const token = await getIgdbToken();
+      const safeTerm = search.replace(/"/g, '\\"');
+      const body = `
+search "${safeTerm}";
+fields id,name,abbreviation,generation;
+limit ${Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 20) : 8};
+`;
+
+      const platforms = await fetchJson('https://api.igdb.com/v4/platforms', {
+        method: 'POST',
+        headers: {
+          'Client-ID': process.env.IGDB_CLIENT_ID,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'text/plain',
+        },
+        body,
+      });
+
+      const normalized = Array.isArray(platforms)
+        ? platforms.map((p) => ({
+          id: p.id,
+          name: p.name || '',
+          abbreviation: p.abbreviation || '',
+          generation: p.generation || null,
+        }))
+        : [];
+      return respondJson(res, 200, { platforms: normalized });
+    } catch (err) {
+      console.error('[igdb platforms]', err.status || '', err.message, err.body || '');
+      if (err.name === 'AbortError') {
+        return respondJson(res, 504, { error: 'IGDB request timed out.' });
+      }
+      if (err.status === 401) {
+        return respondJson(res, 502, { error: 'IGDB auth failed. Check IGDB_CLIENT_ID/SECRET.' });
+      }
+      return respondJson(res, err.status || 502, {
+        error: 'Failed to reach IGDB.',
+        detail: err.body || err.message || null,
+        status: err.status || null,
+      });
+    }
+  }
+
   // Fallback
-  res.writeHead(404, { 'Content-Type': 'text/plain' });
-  res.end('Not found');
+  respondJson(res, 404, { error: 'Not found' });
 });
 
 const PORT = parseInt(process.env.API_PORT || '3000', 10);
 server.listen(PORT, () => {
-  console.log(`[igdb] local proxy running on http://localhost:${PORT}/api/igdb/games`);
+  console.log(`[igdb] local proxy running on http://localhost:${PORT}/api/igdb/{games,platforms}`);
 });

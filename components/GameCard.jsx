@@ -1,141 +1,352 @@
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native'
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Pressable, Animated, Easing, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useDevice } from "../app/device-context";
 
-import MarioWorldImage from '../assets/super-mario-world.png';
-import ProfileImage from '../assets/zim-zorp.png';
+const fallbackImage = 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=80';
 
-export default function GameCard() {
+export default function GameCard({
+    title,
+    year,
+    platform,
+    completionType,
+    completionValue,
+    playerNotes,
+    imageUrl,
+    userName,
+    userPhoto,
+    manual,
+}) {
     const router = useRouter();
     const { isDesktopWeb } = useDevice();
 
-    const infoBarHeight = Math.round(isDesktopWeb ? 35 : 28);
-    const infoTextNumberOfLines = isDesktopWeb ? 4 : 3;
-    const infoTextLineHeight = isDesktopWeb ? 18 : 12;
+    const infoTextNumberOfLines = 3;
+    const infoTextLineHeight = isDesktopWeb ? 18 : 16;
+    const infoTextMaxHeight = infoTextLineHeight * infoTextNumberOfLines;
+    const expandedNotesMaxHeight = isDesktopWeb ? 230 : 190;
+    const reservedNotesSpace = Math.max(expandedNotesMaxHeight - infoTextMaxHeight, 0) + 12;
+    const statusLabel = completionType === 'progress' ? 'Progress' : 'High Score';
+    const statusColor = completionType === 'progress' ? '#E5954E' : '#60E54E';
+    const [isNotesHovered, setIsNotesHovered] = useState(false);
+    const [isCardHovered, setIsCardHovered] = useState(false);
+    const isExpanded = isCardHovered || isNotesHovered;
+    const handleCardHoverIn = () => setIsCardHovered(true);
+    const handleCardHoverOut = () => setIsCardHovered(false);
+    const handleNotesPressIn = () => setIsNotesHovered(true);
+    const handleNotesPressOut = () => setIsNotesHovered(false);
+
+    const [fullNotesHeight, setFullNotesHeight] = useState(infoTextMaxHeight);
+    const notesHeightAnim = useRef(new Animated.Value(infoTextMaxHeight)).current;
+
+    useEffect(() => {
+        const targetHeight = isExpanded
+            ? Math.min(fullNotesHeight, expandedNotesMaxHeight)
+            : infoTextMaxHeight;
+        Animated.timing(notesHeightAnim, {
+            toValue: targetHeight,
+            duration: 240,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    }, [isExpanded, fullNotesHeight, expandedNotesMaxHeight, infoTextMaxHeight, notesHeightAnim]);
+
+    const handleNotesMeasure = (event) => {
+        const height = event?.nativeEvent?.layout?.height;
+        if (height && height > fullNotesHeight) {
+            setFullNotesHeight(height);
+        }
+    };
+
     const styles = StyleSheet.create({
-        container: {
-            width: isDesktopWeb ? 420 : 240,
-            backgroundColor: '#f5f7faff',
-            paddingVertical: isDesktopWeb ? 20 : 10,
-            borderRadius: 21
+        cardSlot: {
+            width: isDesktopWeb ? 240 : 200,
+            paddingBottom: reservedNotesSpace,
+            backgroundColor: 'transparent',
         },
-        titleWrap: { 
-            marginBottom: 10,
-            flexDirection: 'row',
-            justifyContent: 'center',
-            alignItems: 'flex-start'
+        container: {
+            width: '100%',
+            backgroundColor: '#f5f7faff',
+            paddingTop: 10,
+            paddingBottom: 10,
+            borderRadius: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 3,
+            elevation: 3,
+            overflow: 'visible',
+            position: 'relative',
+        },
+        titleWrap: {
+            marginBottom: 6,
+            alignItems: 'center',
+            paddingHorizontal: 10,
         },
         title: {
-            fontSize: isDesktopWeb ? 24 : 16,
-            fontWeight: 'bold',
-            textDecorationLine: 'underline',
+            fontSize: isDesktopWeb ? 17 : 15,
+            fontWeight: '800',
             textAlign: 'center',
-            color: '#1D1D1D'
+            color: '#121212',
         },
         year: {
-            fontSize: isDesktopWeb ? 18 : 14,
-            textDecorationLine: 'none',
-            color: '#888888',
+            fontSize: isDesktopWeb ? 13 : 11,
+            color: '#666',
+        },
+        yearHover: {
+            color: '#001ecf',
         },
         innerCard: {
-            marginHorizontal: isDesktopWeb ? 48 : 12
+            marginHorizontal: 8,
+            position: 'relative',
+            zIndex: 10,
         },
         imageWrap: {
-            aspectRatio: 38 / 27,
-            height: 'auto',
+            aspectRatio: 3 / 4,
             backgroundColor: '#1D1D1D',
-            borderTopLeftRadius: 21,
-            borderTopRightRadius: 21
+            borderRadius: 12,
+            overflow: 'hidden',
         },
         image: {
-            aspectRatio: 1,
-            width: 'auto',
+            width: '100%',
             height: '100%',
-            marginHorizontal: 'auto'
         },
         info: {
-            height: isDesktopWeb ? 95 : 50,
+            marginTop: 6,
             backgroundColor: '#ececec',
-            borderBottomLeftRadius: 21,
-            borderBottomRightRadius: 21
+            borderRadius: 12,
+            overflow: 'visible',
+            position: 'relative',
+            zIndex: 20,
+            elevation: 8,
         },
         infoBar: {
-            height: infoBarHeight,
-            backgroundColor: '#ffffffe8',
-            paddingHorizontal: 10,
-            marginTop: -infoBarHeight+.01,
+            paddingHorizontal: 8,
+            paddingVertical: 6,
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            gap: 10,
+            backgroundColor: '#ffffffeb',
         },
         statusText: {
-            fontSize: isDesktopWeb ? 16 : 12,
-            color: '#1D1D1D'
+            fontSize: isDesktopWeb ? 13 : 11,
+            color: '#1D1D1D',
         },
         userProfile: {
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 6
+            gap: 6,
         },
         userPic: {
-            width: infoBarHeight-4,
-            height: infoBarHeight-4,
+            width: isDesktopWeb ? 26 : 22,
+            height: isDesktopWeb ? 26 : 22,
             borderRadius: 100,
-            marginVertical: 5,
+            backgroundColor: '#d9d9d9',
         },
         username: {
-            fontSize: isDesktopWeb ? 16 : 12,
-            fontWeight: 'bold',
-            color: '#0077CC'
+            fontSize: isDesktopWeb ? 12 : 11,
+            fontWeight: '700',
+            color: '#0077CC',
+        },
+        infoTextContainer: {
+            position: 'relative',
+            minHeight: infoTextMaxHeight + 16,
+            zIndex: 50,
         },
         infoText: {
-            maxHeight: (infoTextLineHeight * infoTextNumberOfLines) + (isDesktopWeb ? 0 : 3),
-            paddingBottom: 5,
-            paddingHorizontal: 5,
-            marginTop: isDesktopWeb ? 10 : 5,
+            padding: 8,
             lineHeight: infoTextLineHeight,
-            fontSize: isDesktopWeb ? 16 : 10,
-            color: '#5B5B5B',
-        }
-  });
+            fontSize: isDesktopWeb ? 13 : 12,
+            color: '#4b4b4b',
+        },
+        infoTextWrapper: {
+            overflow: 'hidden',
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 0,
+            zIndex: 900,
+            backgroundColor: '#ececec',
+            paddingBottom: 8,
+            minHeight: infoTextMaxHeight + 16,
+            borderBottomLeftRadius: 12,
+            borderBottomRightRadius: 12,
+            elevation: 0,
+        },
+        infoTextScroll: {
+            paddingHorizontal: 8,
+            paddingTop: 8,
+            paddingBottom: 4,
+        },
+        hiddenMeasure: {
+            position: 'absolute',
+            opacity: 0,
+            left: 0,
+            right: 0,
+            top: 0,
+            zIndex: -1,
+            pointerEvents: 'none',
+        },
+        badgeRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 4,
+            paddingHorizontal: 10,
+            justifyContent: 'center',
+            position: 'relative',
+            zIndex: 5,
+        },
+        badge: {
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 999,
+            backgroundColor: '#eef2ff',
+        },
+        badgeText: {
+            fontSize: 10,
+            fontWeight: '700',
+            color: '#1f4b99',
+        },
+        cardHover: {
+            transform: [{ translateY: -2 }],
+            shadowOpacity: 0.16,
+            zIndex: 1200,
+            elevation: 14,
+            shadowRadius: 6,
+        },
+        titleHover: {
+            color: '#001ecf',
+            textDecorationLine: 'underline',
+        },
+        imageHover: {
+            opacity: 0.95,
+        },
+        userProfileHover: {
+            opacity: 0.85,
+        },
+    });
 
-  return (
-    <View style={styles.container}>
-        <View style={styles.titleWrap}>
-            <Text style={styles.title}>Super Mario World</Text>
-            <Text style={styles.year}>{" "}(1991)</Text>
-        </View>
-        <View style={styles.innerCard}>
-            <View style={styles.imageWrap}>
-                <Image
-                    source={MarioWorldImage}
-                    style={styles.image}
-                    resizeMode="cover"
-                />
-            </View>
-            <View style={styles.info}>
-                <View style={styles.infoBar}>
-                <Text style={styles.statusText}>
-                    <Text style={{ color: "#60E54E" }}>✓ Completed</Text> – <Text style={{ fontWeight:"bold" }}>96 Exits</Text>
-                </Text>
-                <TouchableOpacity
-                    onPress={() => router.push("/search")}
-                    style={styles.userProfile}
+    const displayName = userName || 'Player';
+    const displayPhoto = userPhoto ? { uri: userPhoto } : null;
+    const completionDisplay = completionValue ? `${completionValue}` : '—';
+
+    return (
+        <View style={styles.cardSlot}>
+            <Pressable
+                style={({ hovered }) => [
+                    styles.container,
+                    (hovered || isExpanded) && styles.cardHover,
+                ]}
+                onHoverIn={handleCardHoverIn}
+                onHoverOut={handleCardHoverOut}
+            >
+                <Pressable
+                    style={styles.titleWrap}
+                    onPress={() => router.push("/search?game")}
+                    onHoverIn={handleCardHoverIn}
                 >
-                    <Image source={ProfileImage} style={styles.userPic} />
-                    {isDesktopWeb && <Text style={styles.username}>soko Awen</Text>}
-                </TouchableOpacity>
+                    {({ hovered, pressed }) => (
+                        <>
+                            <Text
+                                style={[
+                                    styles.title,
+                                    (hovered || pressed) && styles.titleHover,
+                                ]}
+                                numberOfLines={2}
+                            >
+                                {title || 'Untitled Game'}
+                            </Text>
+                            <Text
+                                style={[
+                                    styles.year,
+                                    (hovered || pressed) && styles.yearHover,
+                                ]}
+                            >
+                                {[platform, year].filter(Boolean).join(' • ')}
+                            </Text>
+                        </>
+                    )}
+                </Pressable>
+                <View style={styles.innerCard}>
+                    <Pressable
+                        onPress={() => router.push("/search?game")}
+                        onHoverIn={handleCardHoverIn}
+                    >
+                        {({ hovered }) => (
+                            <View style={[styles.imageWrap, hovered && styles.imageHover]}>
+                                <Image
+                                    source={imageUrl ? { uri: imageUrl } : { uri: fallbackImage }}
+                                    style={styles.image}
+                                    resizeMode="cover"
+                                />
+                            </View>
+                        )}
+                    </Pressable>
+                    <View style={styles.info}>
+                        <View style={styles.infoBar}>
+                            <Text style={styles.statusText}>
+                                <Text style={{ color: statusColor }}>{statusLabel}</Text>
+                                {completionDisplay ? ` • ${completionDisplay}` : ''}
+                            </Text>
+                            <Pressable
+                                onPress={(event) => {
+                                    event.stopPropagation();
+                                    router.push("/search?profile");
+                                }}
+                                style={({ hovered }) => [
+                                    styles.userProfile,
+                                    hovered && styles.userProfileHover,
+                                ]}
+                            >
+                                {displayPhoto
+                                    ? <Image source={displayPhoto} style={styles.userPic} />
+                                    : <View style={styles.userPic} />}
+                                {isDesktopWeb && <Text style={styles.username}>{displayName}</Text>}
+                            </Pressable>
+                        </View>
+                        <Pressable
+                            onPressIn={handleNotesPressIn}
+                            onPressOut={handleNotesPressOut}
+                            onHoverIn={handleCardHoverIn}
+                        >
+                            <View style={styles.infoTextContainer}>
+                                <Animated.View style={[styles.infoTextWrapper, { maxHeight: notesHeightAnim }]}>
+                                    <ScrollView
+                                        scrollEnabled={isExpanded && fullNotesHeight > expandedNotesMaxHeight}
+                                        showsVerticalScrollIndicator
+                                        nestedScrollEnabled
+                                        contentContainerStyle={styles.infoTextScroll}
+                                    >
+                                        <Text
+                                            style={styles.infoText}
+                                            numberOfLines={isExpanded ? undefined : infoTextNumberOfLines}
+                                            ellipsizeMode="tail"
+                                        >
+                                            {playerNotes ? `“${playerNotes}”` : 'No notes yet.'}
+                                        </Text>
+                                    </ScrollView>
+                                </Animated.View>
+                                <View style={styles.hiddenMeasure} onLayout={handleNotesMeasure}>
+                                    <Text style={styles.infoText}>
+                                        {playerNotes ? `“${playerNotes}”` : 'No notes yet.'}
+                                    </Text>
+                                </View>
+                            </View>
+                        </Pressable>
+                    </View>
                 </View>
-                <Text
-                 style={styles.infoText}
-                 numberOfLines={infoTextNumberOfLines}
-                 ellipsizeMode="tail"
-                 >
-                -  “Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras dignissim justo non varius scelerisque."
-                </Text>
-            </View>
+                {(manual || manual === false) && (
+                    <View style={styles.badgeRow}>
+                        <View style={styles.badge}>
+                            <Text style={styles.badgeText}>
+                                {manual ? 'LOREBoards' : 'IGDB'}
+                            </Text>
+                        </View>
+                    </View>
+                )}
+            </Pressable>
         </View>
-    </View>
-  )
+    );
 }
