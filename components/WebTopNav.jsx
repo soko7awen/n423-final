@@ -130,6 +130,18 @@ export default function WebTopNav() {
             { gap: isDesktopWeb ? 16 : 8 },
           ]}
         >
+          <Link href="/search" style={{ fontSize: 20 }}>
+            <Pressable
+              accessibilityLabel="Search"
+              style={({ hovered, pressed }) => [
+                style.navLink,
+                hovered && style.navLinkHover,
+                pressed && style.navLinkActive,
+              ]}
+            >
+              <Ionicons name="search" style={style.navLinkIcon} />
+            </Pressable>
+          </Link>
           <Link href="/create" style={{ fontSize: 20 }}>
             <Pressable
               style={({ hovered, pressed }) => [
@@ -245,6 +257,28 @@ const style = StyleSheet.create({
     backgroundColor: "#cddbff",
     borderColor: "#2d5ad7",
     transform: [{ translateY: 0 }],
+  },
+  navLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    transitionProperty: "background-color, transform",
+    transitionDuration: "140ms",
+    transitionTimingFunction: "ease-out",
+  },
+  navLinkHover: {
+    backgroundColor: "#f2f6ff",
+    transform: [{ translateY: -1 }],
+  },
+  navLinkActive: {
+    backgroundColor: "#e0e9ff",
+    transform: [{ translateY: 0 }],
+  },
+  navLinkIcon: {
+    fontSize: 30,
   },
   profile: {
     display: "flex",

@@ -51,7 +51,7 @@ export default function HomeScreen() {
         },
         gamesContainer: {
             position: "relative",
-            overflow: 'visible',
+            overflow: 'hidden',
         },
         gamesFlex: {
             flexDirection: 'row',
@@ -63,8 +63,10 @@ export default function HomeScreen() {
             right: 0,
             top: 0,
             bottom: 0,
-            width: 80,
+            width: 110,
             pointerEvents: 'none',
+            zIndex: 2000,
+            elevation: 20,
         },
     });
 
@@ -208,10 +210,10 @@ export default function HomeScreen() {
                         {
                             marginLeft: isDesktopWeb ? "5%" : 0,
                             width: isDesktopWeb ? '95%' : '100%',
-                            minHeight: isDesktopWeb ? 440 : 360,
-                        }
-                    ]}
-                >
+            minHeight: isDesktopWeb ? 440 : 360,
+            }
+        ]}
+    >
                     {!!subsError && !user && (
                         <Text style={{ color: '#B00020', marginBottom: 6 }}>{subsError}</Text>
                     )}
@@ -226,6 +228,7 @@ export default function HomeScreen() {
                                 paddingVertical: 12,
                                 overflow: 'visible',
                                 minHeight: isDesktopWeb ? 260 : 220,
+                                paddingRight: 40,
                             }
                         ]}
                     >
@@ -253,15 +256,20 @@ export default function HomeScreen() {
                             />
                         ))}
                     </ScrollView>
-                    <LinearGradient
-                        pointerEvents="none"
-                        colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.9)']}
-                        start={{ x: 0, y: 0.5 }}
-                        end={{ x: 1, y: 0.5 }}
-                        style={styles.fadeRight}
-                    />
-                </View>
-            </View>
+            <LinearGradient
+                pointerEvents="none"
+                colors={[
+                    'rgba(255,255,255,0)',
+                    'rgba(255,255,255,0.4)',
+                    'rgba(255,255,255,0.75)',
+                    'rgba(255,255,255,0.9)',
+                ]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={styles.fadeRight}
+            />
+        </View>
+    </View>
             <Footer />
         </ScrollView>
     );

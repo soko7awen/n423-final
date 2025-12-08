@@ -30,11 +30,18 @@ export default function GameCard({
     const statusColor = completionType === 'progress' ? '#E5954E' : '#60E54E';
     const [isNotesHovered, setIsNotesHovered] = useState(false);
     const [isCardHovered, setIsCardHovered] = useState(false);
-    const isExpanded = isCardHovered || isNotesHovered;
-    const handleCardHoverIn = () => setIsCardHovered(true);
-    const handleCardHoverOut = () => setIsCardHovered(false);
-    const handleNotesPressIn = () => setIsNotesHovered(true);
-    const handleNotesPressOut = () => setIsNotesHovered(false);
+    const [notesOpen, setNotesOpen] = useState(false);
+    const isExpanded = isDesktopWeb ? (isCardHovered || isNotesHovered) : notesOpen;
+    const handleCardHoverIn = () => { if (isDesktopWeb) setIsCardHovered(true); };
+    const handleCardHoverOut = () => { if (isDesktopWeb) setIsCardHovered(false); };
+    const handleNotesPressIn = () => { if (isDesktopWeb) setIsNotesHovered(true); };
+    const handleNotesPressOut = () => { if (isDesktopWeb) setIsNotesHovered(false); };
+    const handleNotesToggle = () => {
+        if (!isDesktopWeb) setNotesOpen((prev) => !prev);
+    };
+    const handleCardPress = () => {
+        if (!isDesktopWeb && notesOpen) setNotesOpen(false);
+    };
 
     const [fullNotesHeight, setFullNotesHeight] = useState(infoTextMaxHeight);
     const notesHeightAnim = useRef(new Animated.Value(infoTextMaxHeight)).current;
@@ -57,6 +64,9 @@ export default function GameCard({
             setFullNotesHeight(height);
         }
     };
+    useEffect(() => {
+        if (isDesktopWeb) setNotesOpen(false);
+    }, [isDesktopWeb]);
 
     const styles = StyleSheet.create({
         cardSlot: {
@@ -255,6 +265,7 @@ export default function GameCard({
                 ]}
                 onHoverIn={handleCardHoverIn}
                 onHoverOut={handleCardHoverOut}
+                onPress={handleCardPress}
             >
                 <Pressable
                     style={styles.titleWrap}
@@ -325,6 +336,7 @@ export default function GameCard({
                             onPressIn={handleNotesPressIn}
                             onPressOut={handleNotesPressOut}
                             onHoverIn={handleCardHoverIn}
+                            onPress={handleNotesToggle}
                         >
                             <View style={styles.infoTextContainer}>
                                 <Animated.View style={[styles.infoTextWrapper, { maxHeight: notesHeightAnim }]}>
