@@ -80,7 +80,7 @@ export default function HomeScreen() {
 
     useEffect(() => {
         let cancelled = false;
-        const q = query(collection(db, 'submissions'), orderBy('createdAt', 'desc'), limit(12));
+        const q = query(collection(db, 'submissions'), orderBy('createdAt', 'desc'), limit(15));
         setLoadingSubs(true);
         const unsubscribe = onSnapshot(
             q,
@@ -310,8 +310,10 @@ export default function HomeScreen() {
                     )}
                     <ScrollView
                         horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={{ overflow: 'visible' }}
+                        showsHorizontalScrollIndicator
+                        nestedScrollEnabled
+                        scrollEventThrottle={16}
+                        style={{ overflow: 'auto' }}
                         contentContainerStyle={[
                             styles.gamesFlex,
                             {
